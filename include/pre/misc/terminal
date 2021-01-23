@@ -1,0 +1,765 @@
+/*-*- C++ -*-*/
+/* Copyright (c) 2018-20 M. Grady Saunders
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
+ * are met:
+ *
+ *   1. Redistributions of source code must retain the above
+ *      copyright notice, this list of conditions and the following
+ *      disclaimer.
+ *
+ *   2. Redistributions in binary form must reproduce the above
+ *      copyright notice, this list of conditions and the following
+ *      disclaimer in the documentation and/or other materials
+ *      provided with the distribution.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED
+ * TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
+ * PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR
+ * CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
+ * EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
+ * PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
+ * PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY
+ * OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+ * NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+ * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
+/*-*-*-*-*-*-*/
+#if !(__cplusplus >= 201709L)
+#error "Precept requires >= C++20"
+#endif // #if !(__cplusplus >= 201709L)
+#pragma once
+#ifndef PRE_MISC_TERMINAL
+#define PRE_MISC_TERMINAL
+
+#if __linux__
+extern "C" {
+// for ioctl
+#include <sys/ioctl.h>
+
+// for STDOUT_FILENO
+#include <unistd.h>
+
+} // extern "C"
+#endif // #if __linux__
+
+// for assert
+#include <cassert>
+
+// for std::reverse, std::max, std::min
+#include <algorithm>
+
+// for std::function
+#include <functional>
+
+// for std::list
+#include <list>
+
+// for std::cout, std::cerr
+#include <iostream>
+
+// for std::format
+#include <format>
+
+// for std::string
+#include <string>
+
+// for std::string_view
+#include <string_view>
+
+// for concepts::ostream, type_list, ...
+#include <pre/common>
+
+namespace pre {
+
+/// Bash codes for text styling.
+enum class BashCode : int {
+    Reset = 0,
+    Bold = 1,
+    Dim = 2,
+    Underline = 4,
+    Blink = 5,
+    Reverse = 7,
+    Hidden = 8,
+    ResetBoldDim = 22, // 21 not widely supported ...
+    ResetUnderline = 24,
+    ResetBlink = 25,
+    ResetReverse = 27,
+    ResetHidden = 28,
+    FgDefault = 39,
+    FgBlack = 30,
+    FgRed = 31,
+    FgGreen = 32,
+    FgYellow = 33,
+    FgBlue = 34,
+    FgMagenta = 35,
+    FgCyan = 36,
+    FgLightGray = 37,
+    FgDarkGray = 90,
+    FgLightRed = 91,
+    FgLightGreen = 92,
+    FgLightYellow = 93,
+    FgLightBlue = 94,
+    FgLightMagenta = 95,
+    FgLightCyan = 96,
+    FgWhite = 97,
+    BgDefault = 49,
+    BgBlack = 40,
+    BgRed = 41,
+    BgGreen = 42,
+    BgYellow = 43,
+    BgBlue = 44,
+    BgMagenta = 45,
+    BgCyan = 46,
+    BgLightGray = 47,
+    BgDarkGray = 100,
+    BgLightRed = 101,
+    BgLightGreen = 102,
+    BgLightYellow = 103,
+    BgLightBlue = 104,
+    BgLightMagenta = 105,
+    BgLightCyan = 106,
+    BgWhite = 107,
+    Error = 1024,
+    ResetError
+};
+
+/// Write into `std::basic_ostream`.
+template <concepts::ostream Stream>
+inline Stream& operator<<(Stream& stream, BashCode code) {
+#if __linux__
+    switch (code) {
+    case BashCode::Error:
+        // Apply bold and red.
+        stream << "\e[" << int(BashCode::Bold) << 'm';
+        stream << "\e[" << int(BashCode::FgRed) << 'm';
+        break;
+    case BashCode::ResetError:
+        // Un-apply bold and red.
+        stream << "\e[" << int(BashCode::FgDefault) << 'm';
+        stream << "\e[" << int(BashCode::ResetBoldDim) << 'm';
+        break;
+    default: stream << "\e[" << int(code) << 'm'; break;
+    }
+#endif // #if __linux__
+    return stream;
+}
+
+} // namespace pre
+
+template <typename Char>
+struct std::formatter<pre::BashCode, Char> {
+    template <typename ParseContext>
+    auto parse(ParseContext& pc) {
+        return pc.end();
+    }
+
+    template <typename FormatContext>
+    auto format(pre::BashCode code, FormatContext& fc) {
+#if __linux__
+        switch (code) {
+        case pre::BashCode::Error:
+            return std::format_to(
+                    fc.out(), "\e[{}m\e[{}m", //
+                    int(pre::BashCode::Bold), int(pre::BashCode::FgRed));
+        case pre::BashCode::ResetError:
+            return std::format_to(
+                    fc.out(), "\e[{}m\e[{}m", //
+                    int(pre::BashCode::FgDefault),
+                    int(pre::BashCode::ResetBoldDim));
+        default: return std::format_to(fc.out(), "\e[{}m", int(code));
+        }
+#endif // #if __linux__
+        return fc.out();
+    }
+};
+
+namespace pre {
+
+/// Terminal size.
+struct TerminalSize {
+    /// Rows.
+    int rows = 0;
+
+    /// Columns.
+    int cols = 0;
+
+    /// Get current terminal size.
+    ///
+    /// \note
+    /// On Linux, uses `ioctl` to fetch terminal size. Otherwise,
+    /// defaults to 24 rows by 80 columns.
+    ///
+    static TerminalSize get() noexcept {
+#if __linux__
+        struct winsize winsz;
+        ioctl(STDOUT_FILENO, TIOCGWINSZ, &winsz);
+        return {int(winsz.ws_row), int(winsz.ws_col)};
+#else
+        return {24, 80};
+#endif // #if __linux__
+    }
+};
+
+/// A terminal progress bar.
+struct TerminalProgressBar {
+  public:
+    /// Default constructor.
+    TerminalProgressBar() noexcept = default;
+
+    /// Constructor.
+    TerminalProgressBar(double amt) noexcept : amount(amt) {
+    }
+
+    /// Amount complete, between 0 and 1.
+    double amount = 0.0;
+
+    /// Write into `std::basic_ostream`.
+    template <concepts::ostream Stream>
+    friend Stream& operator<<(Stream& stream, TerminalProgressBar bar) {
+        // Print bracket.
+        stream << '[';
+        // Terminal size.
+        TerminalSize size = TerminalSize::get();
+        if (size.cols < 8)
+            size = {24, 80}; // Error?
+        // Amount.
+        double amount = bar.amount;
+        amount = std::max(0.0, amount);
+        amount = std::min(1.0, amount);
+        // Columns.
+        int columns = size.cols - 2;
+        // Message.
+        char message[8];
+        message[0] = '%';
+        message[2] = '.';
+        char* messageitr = &message[1];
+        int tmp = amount * 1000;
+        if (tmp < 10) {
+            message[1] = "0123456789"[tmp];
+            message[3] = '0';
+            messageitr = &message[4];
+        }
+        else {
+            while (tmp > 0) {
+                // Reduce.
+                int quo = tmp / 10;
+                int rem = tmp % 10;
+                tmp = quo;
+                // Digit.
+                *messageitr++ = "0123456789"[rem];
+                if (messageitr == &message[2]) {
+                    messageitr++; // Skip decimal point.
+                }
+            }
+        }
+        *messageitr = '\0';
+        // Reverse.
+        std::reverse(message, messageitr);
+        // Print message.
+        stream << message;
+        // Print progress.
+        int column0 = messageitr - message;
+        int column1 = std::max(column0, int(columns * amount));
+        for (; column0 < column1; column0++)
+            stream << '#';
+        for (; column1 < columns; column1++)
+            stream << '.';
+        // Print bracket.
+        stream << ']';
+        return stream;
+    }
+};
+
+/// An option parser.
+///
+/// This class provides an interface to process command-line arguments
+/// in a convenient and self-documenting way. The implementation uses the
+/// type-signatures of specified option variables to verify proper usage and
+/// issue descriptive error messages. A reference to a standard string
+/// is returned whenever an option is specified, to allow client code to
+/// immediately attach a help message. Then, by passing the built-in
+/// default option `-h/--help`, the implementation automatically formats and
+/// displays all help messages.
+///
+class OptionParser {
+  public:
+    /// Constructor.
+    OptionParser(const char* prog_usage) : prog_usage_(prog_usage) {
+        groups_.emplace_back();
+        on_option("-h/--help", [&] { // Default help option.
+            std::cout << *this;
+            std::exit(EXIT_SUCCESS);
+        }) = "Display this help and exit.";
+    }
+
+    /// Set in-group for subsequent calls.
+    ///
+    /// \param[in] name
+    /// Name.
+    ///
+    std::string& in_group(const char* name) {
+        for (auto itr = groups_.begin(); itr != groups_.end(); ++itr) {
+            if ((itr->name.empty() && !name) || itr->name == name) {
+                groups_.splice(groups_.end(), groups_, itr);
+                return groups_.back().help;
+            }
+        }
+        groups_.emplace_back();
+        groups_.back().name = name;
+        return groups_.back().help;
+    }
+    /// Set on-begin callback.
+    ///
+    /// \param[in] callback
+    /// Callback.
+    ///
+    void on_begin(const std::function<void()>& callback) {
+        groups_.back().on_begin = callback;
+    }
+
+    /// Set on-end callback.
+    ///
+    /// \param[in] callback
+    /// Callback.
+    ///
+    void on_end(const std::function<void()>& callback) {
+        groups_.back().on_end = callback;
+    }
+
+    /// Set on-positional callback.
+    ///
+    /// \param[in] callback
+    /// Callback.
+    ///
+    void on_positional(const std::function<void(std::string_view)>& callback) {
+        groups_.back().on_positional = callback;
+    }
+
+    /// Add on-option callback.
+    ///
+    /// \param[in] name
+    /// Name.
+    ///
+    /// \param[in] call
+    /// Call.
+    ///
+    template <typename Call>
+    std::string& on_option(const char* name, Call&& call) {
+        groups_.back().options.emplace_back();
+        Option& option = groups_.back().options.back();
+        option.init_name(name);
+        option.init_callback(std::forward<Call>(call));
+        return option.help;
+    }
+
+    /// Add on-option callback, automatic interpolation variant.
+    ///
+    /// \param[in] name
+    /// Name.
+    ///
+    /// \param[out] arg
+    /// First argument.
+    ///
+    /// \param[out] args
+    /// Other arguments.
+    ///
+    template <typename Arg, typename... Args>
+    std::string& on_option(const char* name, Arg* arg, Args*... args) {
+        return on_option(name, [=](Arg arg_, Args... args_) {
+            std::tie(*arg, *args...) = std::make_tuple(arg_, args_...);
+        });
+    }
+
+    /// Add on-option callback, flag variant.
+    ///
+    /// \param[in] name
+    /// Name.
+    ///
+    /// \param[out] flag
+    /// Flag value.
+    ///
+    std::string& on_option(const char* name, bool* flag) {
+        return on_option(name, [=]() { *flag = true; });
+    }
+
+  public:
+    /// Parse.
+    ///
+    /// \param[in] argc
+    /// Argument count.
+    ///
+    /// \param[in] argv
+    /// Argument pointer.
+    ///
+    /// \throw std::runtime_error
+    /// If unknown option or improper use of option.
+    ///
+    void parse(int argc, char** argv) {
+        assert(argc > 0);
+        assert(argv);
+
+        // Program name.
+        prog_name_ = *argv;
+        --argc;
+        ++argv;
+
+        std::list<OptionGroup>::iterator group_itr = groups_.begin();
+        // On begin.
+        if (group_itr->on_begin)
+            group_itr->on_begin();
+
+        while (argc > 0) {
+            // Look for '=', if present, truncate *argv.
+            char* eq = nullptr;
+            auto eq_pos = std::string_view(*argv).find('=');
+            if (eq_pos != std::string_view::npos) {
+                eq = *argv + eq_pos;
+                *eq = '\0';
+            }
+            // Is option name?
+            if (is_option_name_(*argv)) {
+                // Process.
+                bool option_ok = false;
+                for (Option& option : group_itr->options) {
+                    if (option.name[0] == *argv || option.name[1] == *argv) {
+                        if (eq) {
+                            *argv = eq + 1; // Shift.
+                        }
+                        else {
+                            // Consume.
+                            --argc;
+                            ++argv;
+                        }
+                        // Not enough args? or no args and eq?
+                        if (option.argc > argc || (option.argc == 0 && eq))
+                            throw std::runtime_error(std::format(
+                                    "{} expects {}{}{}", option.nice_name(),
+                                    BashCode::FgLightBlue,
+                                    option.argv_signature,
+                                    BashCode::FgDefault));
+                        // Delegate.
+                        option.on_option(argv);
+                        option_ok = true;
+                        // Consume.
+                        argc -= option.argc;
+                        argv += option.argc;
+                        break;
+                    }
+                }
+
+                // Unknown option?
+                if (!option_ok)
+                    throw std::runtime_error(std::format(
+                            "Unknown option {}{}{}", BashCode::Error, *argv,
+                            BashCode::ResetError));
+            }
+            else {
+                // Undo truncate.
+                if (eq) {
+                    *eq = '=';
+                }
+                // Find group?
+                bool group_itr_found = false;
+                for (auto itr = groups_.begin(); itr != groups_.end(); ++itr) {
+                    if (itr->name == *argv) {
+                        // On end.
+                        if (group_itr->on_end)
+                            group_itr->on_end();
+                        group_itr_found = true;
+                        group_itr = itr;
+                        // On begin.
+                        if (group_itr->on_begin)
+                            group_itr->on_begin();
+                        break;
+                    }
+                }
+
+                if (!group_itr_found) {
+                    // Positional.
+                    if (group_itr->on_positional)
+                        group_itr->on_positional(std::string_view(*argv));
+                    else
+                        throw std::runtime_error(std::format(
+                                "Unexpected positional argument {}{}{}",
+                                BashCode::Error, *argv, BashCode::ResetError));
+                }
+                // Consume.
+                --argc;
+                ++argv;
+            }
+        }
+        // End.
+        if (group_itr->on_end)
+            group_itr->on_end();
+    }
+
+    void parse_or_exit(int argc, char** argv) {
+        try {
+            parse(argc, argv);
+        }
+        catch (const std::runtime_error& err) {
+            std::cerr << err.what() << '\n';
+            std::exit(EXIT_FAILURE);
+        }
+    }
+
+  private:
+    /// Is option name?
+    ///
+    /// An option name string is `/^--?[a-zA-Z](?:-?[a-zA-Z0-9]+)*$/`.
+    ///
+    static bool is_option_name_(const char* str) {
+        std::locale loc;
+        // --?
+        if (!str || *str != '-')
+            return false;
+        str++;
+        if (*str == '-')
+            str++;
+        // [a-zA-Z]
+        if (!std::isalpha(*str, loc))
+            return false;
+        str++;
+        // (?:-?[a-zA-Z0-9]+)*
+        for (const char* tmp = str; true; str = tmp) {
+            // -?
+            if (*tmp == '-')
+                tmp++;
+            // [a-zA-Z0-9]
+            if (!std::isalnum(*tmp, loc))
+                break;
+            tmp++;
+        }
+        return *str == '\0';
+    }
+
+    // Argument signature.
+    template <typename Arg>
+    static consteval const char* argv_signature_() {
+        if constexpr (std::unsigned_integral<Arg>)
+            return "uint";
+        else if constexpr (std::integral<Arg>)
+            return "int";
+        else if constexpr (std::floating_point<Arg>)
+            return "float";
+        else
+            return "string";
+    }
+
+    // Argument cast.
+    template <typename Arg>
+    static Arg argv_cast_(char* argv) {
+        // Sanity check.
+        static_assert(
+                concepts::arithmetic<Arg> ||      //
+                std::same_as<Arg, char*> ||       //
+                std::same_as<Arg, const char*> || //
+                std::same_as<Arg, std::string> || //
+                std::same_as<Arg, std::string_view>);
+        // Is arithmetic?
+        if constexpr (concepts::arithmetic<Arg>) {
+            // Try to convert from string.
+            Arg arg = Arg();
+            size_t pos = 0;
+            if constexpr (std::same_as<Arg, int>)
+                arg = std::stoi(argv, &pos);
+            else if constexpr (std::same_as<Arg, long>)
+                arg = std::stol(argv, &pos);
+            else if constexpr (std::same_as<Arg, long long>)
+                arg = std::stoll(argv, &pos);
+            else if constexpr (
+                    std::same_as<Arg, unsigned long> ||
+                    std::same_as<Arg, unsigned>)
+                arg = std::stoul(argv, &pos);
+            else if constexpr (std::same_as<Arg, unsigned long long>)
+                arg = std::stoull(argv, &pos);
+            else if constexpr (std::same_as<Arg, float>)
+                arg = std::stof(argv, &pos);
+            else if constexpr (std::same_as<Arg, double>)
+                arg = std::stod(argv, &pos);
+            else if constexpr (std::same_as<Arg, long double>)
+                arg = std::stold(argv, &pos);
+            else {
+                // TODO
+            }
+            if (pos != std::string_view(argv).size())
+                throw std::invalid_argument(__func__);
+            return arg;
+        }
+        else {
+            // Just return the pointer.
+            return argv;
+        }
+    }
+
+    /// An option.
+    class Option {
+      public:
+        /// Name(s).
+        std::string_view name[2] = {};
+
+        /// Nice name with text styling.
+        std::string nice_name() const {
+            if (name[1].empty())
+                return std::format(
+                        "{}{}{}", BashCode::Bold, name[0],
+                        BashCode::ResetBoldDim);
+            else
+                return std::format(
+                        "{}{}{}{}/{}{}{}{}", BashCode::Bold, name[0],
+                        BashCode::ResetBoldDim, BashCode::Dim,
+                        BashCode::ResetBoldDim, BashCode::Bold, name[1],
+                        BashCode::ResetBoldDim);
+        }
+
+        /// Argument count.
+        int argc = 0;
+
+        /// Argument signature string.
+        std::string argv_signature;
+
+        /// Callback.
+        std::function<void(char**)> on_option;
+
+        /// Help string.
+        std::string help;
+
+      public:
+        // Init name.
+        void init_name(const char* name_) {
+            name[0] = name_;
+            auto pos = name[0].find('/');
+            if (pos != name[0].npos) {
+                name[1] = name[0].substr(pos + 1);
+                name[0] = name[0].substr(0, pos);
+            }
+        }
+
+        // Init callback.
+        template <typename Call>
+        void init_callback(Call&& call) {
+            // Delegate with callable indexed type list.
+            init_callback(
+                    std::forward<Call>(call),
+                    callable_indexed_type_list_t<Call>{});
+        }
+
+        // Init callback.
+        template <typename Call, typename... Args>
+        void init_callback(Call&& call, type_list<Args...>) {
+            // Init argument count.
+            argc = sizeof...(Args);
+            // Init argument signature.
+            const char* argv_signatures[] = {
+                    argv_signature_<std::decay_t<typename Args::type>>()...};
+            if (argc > 0) {
+                argv_signature = argv_signatures[0];
+                for (auto itr = &argv_signatures[0] + 1;
+                     itr < &argv_signatures[0] + argc; itr++) {
+                    argv_signature += ' ';
+                    argv_signature += *itr;
+                }
+            }
+            // Init callback.
+            on_option = [&, call](char** argv) {
+                (void)argv; // Suppress warning if no arguments.
+                try {
+                    // Delegate to call after argument cast.
+                    call(argv_cast_<std::decay_t<typename Args::type>>(
+                            argv[Args::index])...);
+                }
+                catch (const std::exception&) {
+                    // If an argument cast throws, intercept
+                    // it and rethrow with a better error message.
+                    throw std::runtime_error(std::format(
+                            "{} expects {}{}{}", nice_name(),
+                            BashCode::FgLightBlue, argv_signature,
+                            BashCode::FgDefault));
+                }
+            };
+        }
+    };
+
+    /// An option group.
+    class OptionGroup {
+      public:
+        /// Name.
+        std::string_view name = {};
+
+        /// Nice name with text styling.
+        std::string nice_name() const {
+            if (name.empty())
+                return {};
+            else
+                return std::format(
+                        "{}{}{}", BashCode::Underline, name,
+                        BashCode::ResetUnderline);
+        }
+
+        /// Options.
+        std::list<Option> options;
+
+        /// On-begin callback.
+        std::function<void()> on_begin;
+
+        /// On-end callback.
+        std::function<void()> on_end;
+
+        /// On-positional callback.
+        std::function<void(std::string_view)> on_positional;
+
+        /// Help string.
+        std::string help;
+    };
+
+  public:
+    /// Write help to `std::basic_ostream`.
+    template <concepts::ostream Stream>
+    friend Stream& operator<<(Stream& stream, OptionParser& parser) {
+        stream << std::format(
+                "Usage: {} {}\n\n", //
+                parser.prog_name_,  //
+                parser.prog_usage_);
+        for (OptionGroup& group : parser.groups_) {
+            if (group.name.size() > 0) {
+                stream << group.nice_name() << '\n';
+                stream << group.help << '\n';
+            }
+            for (Option& option : group.options) {
+                stream << std::format(
+                        "{} {}{}{}", //
+                        option.nice_name(), BashCode::FgLightBlue,
+                        option.argv_signature, BashCode::FgDefault);
+                if (!option.help.empty()) {
+                    stream << '\n';
+                    stream << '\t';
+                    for (char ch : option.help) {
+                        stream << ch;
+                        if (ch == '\n')
+                            stream << '\t';
+                    }
+                }
+                stream << '\n';
+                stream << '\n';
+            }
+        }
+        return stream;
+    }
+
+  private:
+    /// Program name (from `argv[0]`).
+    const char* prog_name_ = nullptr;
+
+    /// Program usage line.
+    const char* prog_usage_ = nullptr;
+
+    /// Option groups.
+    std::list<OptionGroup> groups_;
+};
+
+} // namespace pre
+
+#endif // #ifndef PRE_MISC_TERMINAL

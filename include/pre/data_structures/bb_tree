@@ -1,0 +1,400 @@
+/*-*- C++ -*-*/
+/* Copyright (c) 2018-21 M. Grady Saunders
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
+ * are met:
+ *
+ *   1. Redistributions of source code must retain the above
+ *      copyright notice, this list of conditions and the following
+ *      disclaimer.
+ *
+ *   2. Redistributions in binary form must reproduce the above
+ *      copyright notice, this list of conditions and the following
+ *      disclaimer in the documentation and/or other materials
+ *      provided with the distribution.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED
+ * TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
+ * PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR
+ * CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
+ * EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
+ * PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
+ * PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY
+ * OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+ * NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+ * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
+/*-*-*-*-*-*-*/
+#if !(__cplusplus >= 201709L)
+#error "Precept requires >= C++20"
+#endif // #if !(__cplusplus >= 201709L)
+#pragma once
+#ifndef PRE_DATA_STRUCTURES_BB_TREE
+#define PRE_DATA_STRUCTURES_BB_TREE
+
+#include <pre/data_structures/link_list>
+#include <pre/memory/mem_pool>
+#include <pre/shapes/bound_box>
+
+namespace pre {
+
+template <
+        std::floating_point Float,
+        size_t N,
+        typename T,
+        typename Alloc = std::allocator<T>>
+class BbTree {
+  public:
+    typedef size_t size_type;
+
+    struct Node {
+        Node* next;
+        Node* prev;
+        Node* parent;
+        BoundBox<Float, N> box;
+        bool is_leaf;
+        union {
+            struct {
+                alignas(alignof(T)) std::byte value[sizeof(T)];
+                bool has_value;
+            } leaf;
+            struct {
+                Node* left;
+                Node* right;
+                int axis;
+            } branch;
+        };
+
+        /// \name Link API
+        /** \{ */
+
+        constexpr auto* value_ptr() noexcept {
+            return reinterpret_cast<T*>(&leaf.value[0]);
+        }
+
+        constexpr auto* value_ptr() const noexcept {
+            return reinterpret_cast<const T*>(&leaf.value[0]);
+        }
+
+        constexpr bool should_skip() const noexcept {
+            return is_leaf && leaf.has_value;
+        }
+
+        /** \} */
+
+        void recalc_branch() noexcept {
+            box = branch.left->box | branch.right->box;
+            Array<Float, N> lcenter = branch.left->box.center();
+            Array<Float, N> rcenter = branch.right->box.center();
+            branch.axis = pre::abs(lcenter - rcenter).argmax();
+            if (lcenter[branch.axis] > rcenter[branch.axis])
+                std::swap(branch.left, branch.right);
+        }
+    };
+
+    typedef LinkIterator<Node*> iterator;
+    typedef LinkIterator<const Node*> const_iterator;
+
+  public:
+    BbTree(const Alloc& alloc = {}) : pool_(sizeof(Node), 0, alloc) {
+    }
+
+    BbTree(const BbTree&) = delete;
+
+    BbTree(BbTree&& other) noexcept
+        : pool_(std::move(other.pool_)), //
+          root_(other.root_), leaves_(other.leaves_),
+          branches_(other.branches_), size_(other.size_),
+          size_erased_(other.size_erased_), depth_(other.depth_) {
+        other.root_ = nullptr;
+        other.leaves_ = {};
+        other.branches_ = {};
+        other.size_ = 0;
+        other.size_erased_ = 0;
+        other.depth_ = 0;
+    }
+
+    ~BbTree() {
+        clear();
+    }
+
+    BbTree& operator=(const BbTree&) = delete;
+
+    BbTree& operator=(BbTree&& other) noexcept {
+        pool_ = std::move(other.pool_);
+        root_ = std::exchange(other.root_, nullptr);
+        leaves_.head = std::exchange(other.leaves_.head, nullptr);
+        branches_.head = std::exchange(other.branches_.head, nullptr);
+        size_ = std::exchange(other.size_, 0);
+        size_erased_ = std::exchange(other.size_erased_, 0);
+        depth_ = std::exchange(other.depth_, 0);
+        return *this;
+    }
+
+  public:
+    /// \name Container API
+    /** \{ */
+
+    size_type size() const noexcept {
+        return size_;
+    }
+
+    bool empty() const noexcept {
+        return size_ == 0;
+    }
+
+    iterator begin() noexcept {
+        return leaves_.begin();
+    }
+
+    const_iterator begin() const noexcept {
+        return leaves_.begin();
+    }
+
+    const_iterator cbegin() const noexcept {
+        return begin(); // Force const
+    }
+
+    iterator end() noexcept {
+        return leaves_.end();
+    }
+
+    const_iterator end() const noexcept {
+        return leaves_.end();
+    }
+
+    const_iterator cend() const noexcept {
+        return end(); // Force const
+    }
+
+    /// Insert value.
+    ///
+    /// \note
+    /// This inserts the value into the tree quickly without
+    /// disturbing other iterators. The insertion is not guaranteed
+    /// to be optimal. After some considerable number of calls to
+    /// `insert()`, it is advisable to call `rebalance()` to
+    /// optimize the tree.
+    ///
+    /// \throw std::invalid_argument
+    /// If box is invalid, such that its minimum exceeds its maximum
+    /// in any axis.
+    ///
+    template <typename... Args>
+    iterator insert(const BoundBox<Float, N>& box, Args&&... args) {
+        if (!box)
+            throw std::invalid_argument(__func__);
+        Node* leaf = static_cast<Node*>(pool_.allocate());
+        leaf->next = leaf->prev = leaf->parent = nullptr;
+        leaf->box = box;
+        leaf->is_leaf = true;
+        new (&leaf->leaf.value[0]) T(std::forward<Args>(args)...);
+        leaf->leaf.has_value = true;
+        if (root_ == nullptr)
+            root_ = leaf;
+        else
+            insert_(root_, leaf);
+        leaves_.prepend(leaf);
+        ++size_;
+        return leaf;
+    }
+
+    /// Erase value.
+    ///
+    /// This deconstructs the value at the given iterator, but
+    /// does not actually modify the tree. This simply marks the
+    /// node as erased. This does not really matter from the user
+    /// perspective, in that advancing an `iterator` automatically
+    /// skips erased nodes. After some considerable number of calls
+    /// to `erase()` however, it is advisable to call `rebalance()`
+    /// to optimize the tree.
+    ///
+    /// \pre
+    /// - The `pos` iterator is valid.
+    ///
+    /// \post
+    /// - The `pos` iterator is invalid.
+    ///
+    /// \returns
+    /// Returns next iterator, as if by `std::next(pos)`.
+    ///
+    iterator erase(const_iterator pos) noexcept {
+        Node* node = const_cast<Node*>(pos.link);
+        assert(node);
+        assert(node->is_leaf && node->leaf.has_value);
+        if constexpr (!concepts::trivially_destructible<T>)
+            node->value_ptr()->~T();
+        pool_.deallocate(node);
+        node->leaf.has_value = false;
+        --size_;
+        ++size_erased_;
+        return node->next;
+    }
+
+    void clear() noexcept {
+        if constexpr (!concepts::trivially_destructible<T>)
+            for (auto& value : *this)
+                value.~T();
+        pool_.reset();
+        root_ = nullptr;
+        leaves_ = {};
+        branches_ = {};
+        size_ = 0;
+        size_erased_ = 0;
+        depth_ = 0;
+    }
+
+    /** \} */
+
+  public:
+    /// Depth.
+    ///
+    /// This is the depth of the deepest leaf.
+    ///
+    size_t depth() const noexcept {
+        return depth_;
+    }
+
+    /// Optimal depth.
+    ///
+    /// This is the approximate depth of the deepest leaf if the
+    /// tree were perfectly balanced, which is calculated by rounding
+    /// up `size()` to the next power of 2, then taking the base-2
+    /// logarithm and adding 1.
+    ///
+    size_t optimal_depth() const noexcept {
+        return first1(roundpow2(size_)) + 1;
+    }
+
+    /// Should rebalance?
+    ///
+    /// This is a heuristic to help client code decide when to
+    /// rebalance the tree. This returns true if the deepest leaf is
+    /// more than twice the optimal depth, of if more than half of all
+    /// leaf nodes have been erased.
+    ///
+    bool should_rebalance() const noexcept {
+        return depth() > 2 * optimal_depth() || size_erased_ > size_;
+    }
+
+    /// Rebalance.
+    ///
+    /// This rebalances the tree by reorganizing all leaf nodes and
+    /// reallocating all branch nodes. This is an expensive operation, but
+    /// optimizes the tree structure such that subsequent operations perform
+    /// more efficiently.
+    ///
+    void rebalance() {
+        if (size_ == 0 && size_erased_ == 0)
+            return;
+        for (Node* node = branches_.head; node;) {
+            Node* next = node->next;
+            pool_.deallocate(node);
+            node = next;
+        }
+        branches_ = {};
+        std::vector<Node*> leaves;
+        leaves.reserve(size_);
+        for (Node* node = leaves_.head; node;) {
+            if (node->leaf.has_value) {
+                leaves.emplace_back(node);
+                node = node->next;
+            }
+            else {
+                Node* next = node->next;
+                pool_.deallocate(node);
+                node = next;
+            }
+        }
+        depth_ = 0;
+        size_erased_ = 0;
+        root_ = rebalance_(
+                nullptr, 0, {&leaves[0], &leaves[0] + leaves.size()});
+        leaves_.head = leaves[0];
+        leaves_.head->prev = nullptr;
+        for (auto itr = leaves.begin(); itr + 1 < leaves.end(); ++itr) {
+            (*(itr + 0))->next = *(itr + 1);
+            (*(itr + 1))->prev = *(itr + 0);
+        }
+        leaves.back()->next = nullptr;
+    }
+
+  private:
+    MemPool<Alloc> pool_;           ///< Node pool.
+    Node* root_ = nullptr;          ///< Root.
+    LinkList<Node*> leaves_ = {};   ///< All leaves.
+    LinkList<Node*> branches_ = {}; ///< All branches.
+    size_t size_ = 0;               ///< Leaf count.
+    size_t size_erased_ = 0;        ///< Leaf count erased.
+    size_t depth_ = 0;              ///< Maximum depth.
+
+  private:
+    void insert_(Node*& node, Node* leaf, size_t depth = 0) {
+        if (node->is_leaf || node->box.contains(leaf->box) == false) {
+            Node* parent = node->parent;
+            Node* branch = static_cast<Node*>(pool_.allocate());
+            branch->next = nullptr;
+            branch->prev = nullptr;
+            branch->parent = parent;
+            branch->is_leaf = false;
+            branch->branch.left = node;
+            branch->branch.right = leaf;
+            branch->recalc_branch();
+            branches_.prepend(branch);
+            leaves_.prepend(leaf);
+            node = branch;
+            if (depth_ < depth)
+                depth_ = depth;
+        }
+        else {
+            Float leaf_center = leaf->box.center()[node->branch.axis];
+            Float node_center = node->box.center()[node->branch.axis];
+            Node*& child = leaf_center < node_center ? node->branch.left
+                                                     : node->branch.right;
+            insert_(child, leaf, depth + 1);
+            node->recalc_branch();
+        }
+    }
+
+    Node* rebalance_(
+            Node* parent, size_t depth, IteratorRange<Node**> leaves) {
+        if (leaves.size() == 1) {
+            leaves[0]->parent = parent;
+            if (depth_ < depth)
+                depth_ = depth;
+            return leaves[0];
+        }
+        Node* node = static_cast<Node*>(pool_.allocate());
+        node->next = nullptr;
+        node->prev = nullptr;
+        node->parent = parent;
+        node->is_leaf = false;
+        BoundBox<Float, N> box;
+        BoundBox<Float, N> box_center;
+        for (const Node* leaf : leaves) {
+            box |= leaf->box;
+            box_center |= leaf->box.center();
+        }
+        int axis = box_center.diag().argmax();
+        node->box = box;
+        node->branch.axis = axis;
+        Node** middle = leaves.begin() + leaves.size() / 2;
+        std::nth_element(
+                leaves.begin(), middle, leaves.end(),
+                [=](const Node* leaf0, const Node* leaf1) {
+                    return leaf0->box.center()[axis] <
+                           leaf1->box.center()[axis];
+                });
+        depth += 1;
+        node->branch.left = rebalance_(node, depth, {leaves.begin(), middle});
+        node->branch.right = rebalance_(node, depth, {middle, leaves.end()});
+        branches_.prepend(node);
+        return node;
+    }
+};
+
+} // namespace pre
+
+#endif // #ifndef PRE_DATA_STRUCTURES_BB_TREE

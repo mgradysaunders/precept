@@ -1,0 +1,206 @@
+/*-*- C++ -*-*/
+/* Copyright (c) 2018-21 M. Grady Saunders
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
+ * are met:
+ *
+ *   1. Redistributions of source code must retain the above
+ *      copyright notice, this list of conditions and the following
+ *      disclaimer.
+ *
+ *   2. Redistributions in binary form must reproduce the above
+ *      copyright notice, this list of conditions and the following
+ *      disclaimer in the documentation and/or other materials
+ *      provided with the distribution.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED
+ * TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
+ * PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR
+ * CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
+ * EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
+ * PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
+ * PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY
+ * OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+ * NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+ * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
+/*-*-*-*-*-*-*/
+#if !(__cplusplus >= 201709L)
+#error "Precept requires >= C++20"
+#endif // #if !(__cplusplus >= 201709L)
+#pragma once
+#ifndef PRE_MEMORY_MEM_STACK
+#define PRE_MEMORY_MEM_STACK
+
+#include <memory>
+#include <vector>
+#include <pre/common>
+
+namespace pre {
+
+/// A memory stack.
+///
+/// This structure is meant to optimize heap-allocations in contexts
+/// where memory in use can be checkpointed and rolled back using stack-style
+/// push and pop operations.
+///
+template <typename Alloc = std::allocator<std::byte>>
+struct MemStack {
+  public:
+    typedef Alloc allocator_type;
+
+    typedef std::allocator_traits<Alloc> allocator_traits;
+
+    MemStack(size_t block_size = 0, const Alloc& alloc = Alloc())
+        : block_size_(block_size), alloc_(alloc), pushes_(alloc) {
+        if (block_size_ == 0)
+            block_size_ = 65536;
+        block_tail_ = block_allocate_(0);
+        pushes_.reserve(8);
+    }
+
+    MemStack(const MemStack&) = delete;
+
+    MemStack(MemStack&& other) noexcept
+        : block_size_(other.block_size_),
+          block_tail_(std::exchange(other.block_tail_, nullptr)),
+          alloc_(std::move(other.alloc_)), pushes_(std::move(other.pushes_)) {
+    }
+
+    ~MemStack() {
+        clear();
+        block_deallocate_(block_tail_);
+        block_tail_ = nullptr;
+    }
+
+    MemStack& operator=(const MemStack&) = delete;
+
+    MemStack& operator=(MemStack&& other) noexcept {
+        this->~MemStack();
+        block_size_ = other.block_size_;
+        block_tail_ = std::exchange(other.block_tail_, nullptr);
+        alloc_ = std::move(other.alloc_);
+        pushes_ = std::move(other.pushes_);
+        return *this;
+    }
+
+  public:
+    void* allocate(size_t n) {
+        n = (n + 15U) & ~15U;
+        ensure_tail_can_allocate_(n);
+        void* ptr = block_tail_->top;
+        block_tail_->top += n;
+        return ptr;
+    }
+
+    void clear() noexcept {
+        // Find head.
+        Block* head = block_tail_;
+        while (head->prev)
+            head = head->prev;
+
+        // Deallocate all remaining blocks.
+        Block* block = head->next;
+        while (block) {
+            Block* next = block->next;
+            block_deallocate_(block);
+            block = next;
+        }
+
+        // Clear.
+        block_tail_ = head;
+        block_tail_->next = nullptr;
+        block_tail_->top = block_tail_->begin;
+        pushes_.clear();
+    }
+
+    /// Create scoped push object to automatically pop on destruction.
+    auto scoped_push() {
+        return Scoped([&]() { push(); }, [&]() { pop(); });
+    }
+
+    /// Push current state.
+    void push() {
+        pushes_.push_back({block_tail_, block_tail_->top});
+    }
+
+    /// Pop state.
+    void pop() {
+        // Tail block.
+        block_tail_ = pushes_.back().first;
+        block_tail_->top = pushes_.back().second;
+        pushes_.pop_back();
+
+        // Clear all next blocks.
+        Block* block = block_tail_->next;
+        while (block) {
+            block->top = block->begin;
+            block = block->next;
+        }
+    }
+
+  private:
+    /// A block.
+    struct alignas(16) Block {
+        Block* next;      ///< Pointer to next block.
+        Block* prev;      ///< Pointer to previous block.
+        std::byte* begin; ///< Pointer to stack memory begin.
+        std::byte* end;   ///< Pointer to stack memory end.
+        std::byte* top;   ///< Pointer to stack memory top.
+    };
+
+    size_t block_size_ = 65536;
+
+    Block* block_tail_ = nullptr;
+
+    template <typename T>
+    using RebindAlloc =
+            typename std::allocator_traits<Alloc>::template rebind_alloc<T>;
+
+    template <typename T>
+    using RebindVector = std::vector<T, RebindAlloc<T>>;
+
+    RebindAlloc<std::byte> alloc_;
+
+    RebindVector<std::pair<Block*, std::byte*>> pushes_;
+
+  private:
+    Block* block_allocate_(size_t least_n = 0) {
+        if (least_n < block_size_)
+            least_n = block_size_;
+        auto* ptr = alloc_.allocate(sizeof(Block) + least_n);
+        auto* block = reinterpret_cast<Block*>(ptr);
+        block->next = nullptr;
+        block->prev = nullptr;
+        block->begin = ptr + sizeof(Block);
+        block->end = block->begin + least_n;
+        block->top = block->begin;
+        return block;
+    }
+
+    void block_deallocate_(Block* block) {
+        alloc_.deallocate(
+                reinterpret_cast<std::byte*>(block),
+                sizeof(Block) + block->end - block->begin);
+    }
+
+    void ensure_tail_can_allocate_(size_t n) {
+        if (block_tail_->top + n > block_tail_->end) {
+            if (block_tail_->next) {
+                block_tail_ = block_tail_->next;
+                ensure_tail_can_allocate_(n); // Recurse.
+            }
+            else {
+                block_tail_->next = block_allocate_(n);
+                block_tail_->next->prev = block_tail_;
+                block_tail_ = block_tail_->next;
+            }
+        }
+    }
+};
+
+} // namespace pre
+
+#endif // #ifndef PRE_MEMORY_MEM_STACK

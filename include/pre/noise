@@ -1,0 +1,153 @@
+/*-*- C++ -*-*/
+/* Copyright (c) 2018-21 M. Grady Saunders
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
+ * are met:
+ *
+ *   1. Redistributions of source code must retain the above
+ *      copyright notice, this list of conditions and the following
+ *      disclaimer.
+ *
+ *   2. Redistributions in binary form must reproduce the above
+ *      copyright notice, this list of conditions and the following
+ *      disclaimer in the documentation and/or other materials
+ *      provided with the distribution.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED
+ * TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
+ * PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR
+ * CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
+ * EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
+ * PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
+ * PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY
+ * OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+ * NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+ * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
+/*-*-*-*-*-*-*/
+#if !(__cplusplus >= 201709L)
+#error "Precept requires >= C++20"
+#endif // #if !(__cplusplus >= 201709L)
+#pragma once
+#ifndef PRE_NOISE
+#define PRE_NOISE
+
+// for pre::Array
+#include <pre/array>
+
+// for pre::Pcg32
+#include <pre/random>
+
+namespace pre {
+
+/// A simplex noise generator.
+template <std::floating_point Float, size_t N>
+struct Noise {
+    static_assert(N <= 16, "Probably not robust beyond 16 dimensions!");
+
+  public:
+    /// Random seed.
+    std::uint32_t seed = 0;
+
+  public:
+    /// Calculate value and derivative at coordinate.
+    auto operator()(const Array<Float, N>& t) const noexcept {
+        struct {
+            Float value = 0;
+            Array<Float, N> deriv;
+        } res = {};
+        // Skew, shift into [0, 1)^2.
+        static Float f = (1.0 / N) * (pre::sqrt(N + 1) - 1.0);
+        static Float g = (1.0 / N) * (1.0 - 1.0 / pre::sqrt(N + 1));
+        Array<Float, N> tskew = t + f * t.sum();
+        Array<int, N> tskew0 = fast_floor(tskew);
+        tskew -= tskew0;
+        // Determine decreasing order of coordinate values.
+        Array<int, N> reorder = {};
+        if constexpr (N == 2) {
+            reorder = {0, 1};
+            if (tskew[0] < tskew[1])
+                reorder = {1, 0};
+        }
+        else if constexpr (N > 2) {
+            std::pair<Float, int> sorted[N];
+            for (size_t k = 0; k < N; k++)
+                sorted[k] = {tskew[k], int(k)};
+            std::sort(
+                    &sorted[0], &sorted[0] + N,
+                    [](const std::pair<Float, int>& tmp0,
+                       const std::pair<Float, int>& tmp1) {
+                        return tmp0.first > tmp1.first;
+                    });
+            for (size_t k = 0; k < N; k++)
+                reorder[k] = sorted[k].second;
+        }
+        // Add terms.
+        Array<Float, N> ver0 = tskew0 - g * tskew0.sum();
+        Array<int, N> off = {};
+        for (size_t k = 0; k <= N; k++) {
+            Array<Float, N> ver = ver0 + off - g * k;
+            Array<Float, N> sep = t - ver;
+            Float env = Float(0.5) - dot(sep, sep);
+            if (env > 0) {
+                Array<Float, N> grad = gradient_(tskew0 + off);
+                Float proj = dot(grad, sep);
+                res.value += (env * env) * proj;
+                res.deriv += (env * env) * grad - (4 * env * proj) * sep;
+            }
+            if (k < N)
+                off[reorder[k]]++;
+        }
+        // Apply gain and exponential saturation.
+        res.value *= 20;
+        res.deriv *= 20;
+        if (pre::abs(res.value) > Float(0.5)) {
+            Float sat = pre::exp(1 - 2 * pre::abs(res.value));
+            res.value = pre::copysign(Float(1.0), res.value) * (1 - sat / 2);
+            res.deriv *= sat;
+        }
+        return res;
+    }
+
+    Float value(const Array<Float, N>& t) const noexcept {
+        return operator()(t).value;
+    }
+
+    Array<Float, N> deriv(const Array<Float, N>& t) const noexcept {
+        return operator()(t).deriv;
+    }
+
+  private:
+    // Gradient at lattice location.
+    Array<Float, N> gradient_(const Array<int, N>& loc) const noexcept {
+        // Compute unique stream for location using Cantor pairing function.
+        int stream = loc[0];
+        for (size_t k = 1; k < N; k++)
+            stream = cantor(stream, loc[k]);
+
+        // Initialize gradient.
+        Array<Float, N> grad;
+        Pcg32 gen(seed, stream);
+        for (size_t k = 0; k < N; k++)
+            grad[k] = (2 / Float(15)) * gen(16) - 1;
+        return grad;
+    }
+};
+
+template <std::floating_point Float>
+using Noise1 = Noise<Float, 1>;
+
+template <std::floating_point Float>
+using Noise2 = Noise<Float, 2>;
+
+template <std::floating_point Float>
+using Noise3 = Noise<Float, 3>;
+
+template <std::floating_point Float>
+using Noise4 = Noise<Float, 4>;
+
+} // namespace pre
+
+#endif // #ifndef PRE_NOISE

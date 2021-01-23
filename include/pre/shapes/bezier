@@ -1,0 +1,309 @@
+/*-*- C++ -*-*/
+/* Copyright (c) 2018-20 M. Grady Saunders
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
+ * are met:
+ *
+ *   1. Redistributions of source code must retain the above
+ *      copyright notice, this list of conditions and the following
+ *      disclaimer.
+ *
+ *   2. Redistributions in binary form must reproduce the above
+ *      copyright notice, this list of conditions and the following
+ *      disclaimer in the documentation and/or other materials
+ *      provided with the distribution.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED
+ * TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
+ * PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR
+ * CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
+ * EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
+ * PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
+ * PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY
+ * OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+ * NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+ * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
+/*-*-*-*-*-*-*/
+#if !(__cplusplus >= 201709L)
+#error "Precept requires >= C++20"
+#endif // #if !(__cplusplus >= 201709L)
+#pragma once
+#ifndef PRE_SHAPES_BEZIER
+#define PRE_SHAPES_BEZIER
+
+#include <pre/array>
+#include <pre/math>
+#include <pre/shapes/bound_box>
+
+namespace pre {
+
+/// A bezier curve segment.
+///
+/// \tparam Float  Float type.
+/// \tparam N      Point dimension.
+/// \tparam D      Degree.
+///
+template <std::floating_point Float, size_t N, size_t D>
+struct Bezier : ArrayLike<Bezier<Float, N, D>, Array<Float, N>> {
+  public:
+    constexpr Bezier() noexcept = default;
+
+    template <typename... Args>
+    constexpr Bezier(const Array<Float, N>& p0, const Args&... pk) noexcept
+        : points_{p0, pk...} {
+        static_assert(sizeof...(Args) + 1 == D + 1);
+    }
+
+    template <std::floating_point Other>
+    explicit constexpr Bezier(const Array<Other, N>* ps) noexcept {
+        std::copy(ps, ps + D + 1, begin());
+    }
+
+  public:
+    /// \name Container API
+    /** \{ */
+
+    constexpr size_t size() noexcept {
+        return D + 1;
+    }
+
+    constexpr Array<Float, N>* begin() noexcept {
+        return &points_[0];
+    }
+
+    constexpr const Array<Float, N>* begin() const noexcept {
+        return &points_[0];
+    }
+
+    constexpr Array<Float, N>* end() noexcept {
+        return &points_[0] + size();
+    }
+
+    constexpr const Array<Float, N>* end() const noexcept {
+        return &points_[0] + size();
+    }
+
+    /** \} */
+
+  public:
+    /// Value operator.
+    constexpr Array<Float, N> operator()(Float t) const noexcept {
+        if constexpr (D == 0) {
+            return points_[0];
+        }
+        else if constexpr (D == 1) {
+            return lerp(t, points_[0], points_[1]);
+        }
+        else if constexpr (D == 2) {
+            Float u = 1 - t;
+            Float u2 = u * u;
+            Float t2 = t * t;
+            return u2 * points_[0] + (2 * u * t) * points_[1] +
+                   t2 * points_[2];
+        }
+        else if constexpr (D == 3) {
+            Float u = 1 - t;
+            Float u2 = u * u, u3 = u * u2;
+            Float t2 = t * t, t3 = t * t2;
+            return u3 * points_[0] + (3 * u2 * t) * points_[1] +
+                   (3 * u * t2) * points_[2] + t3 * points_[3];
+        }
+        else {
+            return lerp(
+                    t, //
+                    Bezier<Float, N, D - 1>(&points_[0])(t),
+                    Bezier<Float, N, D - 1>(&points_[1])(t));
+        }
+    }
+
+    /// Derivative.
+    constexpr Bezier<Float, N, D - 1> deriv() const noexcept requires(D > 0) {
+        Bezier<Float, N, D - 1> bez;
+        for (size_t k = 0; k < D; k++)
+            bez.points_[k] = D * (points_[k + 1] - points_[k]);
+        return bez;
+    }
+
+    /// Nth derivative.
+    template <size_t Which>
+    constexpr Bezier<Float, N, D - Which> nth_deriv() const noexcept {
+        if constexpr (Which == 0)
+            return *this;
+        else
+            return nth_deriv<Which - 1>().deriv();
+    }
+
+    /// Increase the degree of the curve.
+    [[nodiscard]] constexpr Bezier<Float, N, D + 1> increase_degree()
+            const noexcept requires(D > 0) {
+        if constexpr (D == 1) {
+            return Bezier<Float, N, 2>{
+                    points_[0], Float(0.5) * (points_[0] + points_[1]),
+                    points_[1]};
+        }
+        else {
+            Bezier<Float, N, D + 1> bez;
+            bez.points_[0] = points_[0];
+            bez.points_[D + 1] = points_[D];
+            for (size_t k = 1; k < D + 1; k++)
+                bez.points_[k] =
+                        (Float(k) / Float(D + 1)) * points_[k - 1] +
+                        (Float(D + 1 - k) / Float(D + 1)) * points_[k];
+            return bez;
+        }
+    }
+
+    /// Decrease the degree of the curve.
+    [[nodiscard]] constexpr Bezier<Float, N, D - 1> decrease_degree()
+            const noexcept requires(D > 1) {
+        if constexpr (D == 2) {
+            return Bezier<Float, N, 1>{points_[0], points_[2]};
+        }
+        else {
+            // Just in case it isn't ideally reducible, average the
+            // forward and reverse formulations.
+            Bezier<Float, N, D - 1> fwd, rev;
+            fwd.points_[0] = points_[0];
+            rev.points_[0] = points_[0];
+            fwd.points_[D - 1] = points_[D];
+            rev.points_[D - 1] = points_[D];
+            for (size_t k = 1, l = D - 2; k < D - 1; k++, l--) {
+                fwd.points_[k] =
+                        (Float(D) / Float(D - k)) * points_[k] -
+                        (Float(k) / Float(D - k)) * fwd.points_[k - 1];
+                rev.points_[l] =
+                        (Float(D) / Float(l + 1)) * points_[l + 1] -
+                        (Float(D) / Float(l + 1) - 1) * rev.points_[l + 1];
+            }
+            for (size_t k = 1; k < D - 1; k++) {
+                fwd.points_[k] *= Float(0.5);
+                fwd.points_[k] += Float(0.5) * rev.points_[k];
+            }
+            return fwd;
+        }
+    }
+
+    /// Reverse.
+    [[nodiscard]] constexpr Bezier<Float, N, D> reverse() const noexcept {
+        Bezier<Float, N, D> bez = *this;
+        std::reverse(bez.begin(), bez.end());
+        return bez;
+    }
+
+    /// Length.
+    Float length() const noexcept requires(D <= 3) {
+        if constexpr (std::same_as<Float, float>) {
+            return Bezier<double, N, D>(*this).length();
+        }
+        else if constexpr (D == 0) {
+            return 0;
+        }
+        else if constexpr (D == 1) {
+            return pre::length(points_[1] - points_[0]);
+        }
+        else if constexpr (D == 2) {
+            Array<Float, N> q0 =
+                    2 * (points_[0] - 2 * points_[1] + points_[2]);
+            Array<Float, N> q1 = 2 * (points_[1] - points_[0]);
+            Float a = dot(q0, q0), b = 2 * dot(q0, q1);
+            Float c = dot(q1, q1);
+            Float a1_2 = pre::sqrt(a);
+            Float c1_2 = pre::sqrt(c);
+            Float s1_2 = pre::sqrt(a + b + c);
+            Float len = s1_2 / 2 + b * (s1_2 - c1_2) / (4 * a);
+            if (Float d = (b * b - 4 * a * c) / (8 * a1_2 * a);
+                pre::isfinite(d) && d != 0) {
+                Float numer = b + 2 * (a + a1_2 * s1_2);
+                Float denom = b + 2 * a1_2 * c1_2;
+                Float log_term = -d * pre::log(numer / denom);
+                if (pre::isfinite(log_term))
+                    len += log_term;
+            }
+            return len;
+        }
+        else {
+            // Is approximately quadratic?
+            Float tmp0 = length2(points_[2] + points_[0] - 2 * points_[1]);
+            Float tmp1 = length2(points_[3] + points_[1] - 2 * points_[2]);
+            Float tmp2 = length2(
+                    points_[3] - points_[0] + 3 * (points_[1] - points_[2]));
+            if (tmp2 <= pre::numeric_limits<Float>::machine_epsilon() ||
+                tmp2 <= pre::max(tmp0, tmp1) * 0.05) {
+                // Calculate as if this is quadratic.
+                return decrease_degree().length();
+            }
+            else {
+                // Subdivide until this is approximately quadratic, note this
+                // usually takes 3 or 4 recursions.
+                auto [cut0, cut1] = cut(0.5);
+                return cut0.length() + cut1.length();
+            }
+        }
+    }
+
+    /// Subset on range \f$ [0, t] \f$.
+    constexpr Bezier subset(Float t) const noexcept {
+        if constexpr (D == 0) {
+            return *this;
+        }
+        else if constexpr (D == 1) {
+            return {points_[0], lerp(t, points_[0], points_[1])};
+        }
+        else if constexpr (D == 2) {
+            Array<Float, N> tmp0 = lerp(t, points_[0], points_[1]);
+            Array<Float, N> tmp1 = lerp(t, points_[1], points_[2]);
+            return {points_[0], tmp0, lerp(t, tmp0, tmp1)};
+        }
+        else {
+            Bezier bez;
+            bez.points_[0] = points_[0];
+            Array<Float, N> tmps[2 * (D + 1)];
+            Array<Float, N>* tmps0 = &tmps[0];
+            Array<Float, N>* tmps1 = &tmps[D + 1];
+            for (size_t k = 0; k < D + 1; k++)
+                tmps0[k] = points_[k];
+            for (size_t j = 1; j < D + 1; j++) {
+                for (size_t k = 0; k < D + 1 - j; k++)
+                    tmps1[k] = lerp(t, tmps0[k], tmps0[k + 1]);
+                bez.points_[j] = tmps1[0];
+                std::swap(tmps0, tmps1);
+            }
+            return bez;
+        }
+    }
+
+    constexpr std::pair<Bezier, Bezier> cut(Float t) const noexcept {
+        return {subset(t), reverse().subset(1 - t).reverse()};
+    }
+
+    template <std::floating_point Other>
+    constexpr operator Bezier<Other, N, D>() const noexcept {
+        return Bezier<Other, N, D>(&points_[0]);
+    }
+
+    constexpr operator BoundBox<Float, N>() const noexcept {
+        BoundBox<Float, N> box;
+        for (const auto& point : points_)
+            box |= point;
+        return box;
+    }
+
+  public:
+    void serialize(auto& serializer) {
+        serializer <=> points_;
+    }
+
+  public:
+    Array<Float, N> points_[D + 1];
+};
+
+template <typename T, size_t N, concepts::array... Args>
+Bezier(const Array<T, N>&, const Args&...)
+        -> Bezier<to_floating_point_t<T>, N, sizeof...(Args)>;
+
+} // namespace pre
+
+#endif // #ifndef PRE_SHAPES_BEZIER

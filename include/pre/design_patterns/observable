@@ -1,0 +1,187 @@
+/*-*- C++ -*-*/
+/* Copyright (c) 2018-20 M. Grady Saunders
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
+ * are met:
+ *
+ *   1. Redistributions of source code must retain the above
+ *      copyright notice, this list of conditions and the following
+ *      disclaimer.
+ *
+ *   2. Redistributions in binary form must reproduce the above
+ *      copyright notice, this list of conditions and the following
+ *      disclaimer in the documentation and/or other materials
+ *      provided with the distribution.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED
+ * TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
+ * PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR
+ * CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
+ * EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
+ * PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
+ * PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY
+ * OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+ * NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+ * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
+/*-*-*-*-*-*-*/
+#if !(__cplusplus >= 201709L)
+#error "Precept requires >= C++20"
+#endif // #if !(__cplusplus >= 201709L)
+#pragma once
+#ifndef PRE_DESIGN_PATTERNS_OBSERVABLE
+#define PRE_DESIGN_PATTERNS_OBSERVABLE
+
+// for std::function
+#include <functional>
+
+// for std::multimap
+#include <map>
+
+// for std::vector
+#include <vector>
+
+// for pre::IteratorRange
+#include <pre/common>
+
+// for pre::IdString
+#include <pre/design_patterns/id_string>
+
+// for pre::RefCountable
+#include <pre/design_patterns/ref_countable>
+
+namespace pre {
+
+/// An observable interface.
+template <typename... Args>
+class Observable {
+  public:
+    virtual ~Observable() = default;
+
+    using Callback = std::function<void(Args...)>;
+
+    using Callbacks = std::multimap<IdString, Callback>;
+
+    void notify(const IdString& what, Args... args) {
+        for (auto& kv : IteratorRange(callbacks_.equal_range(what))) {
+            kv.second(args...);
+        }
+    }
+
+  private:
+    Callbacks callbacks_;
+
+    friend class Observer;
+};
+
+/// An observer interface.
+template <typename... Args>
+class Observer {
+  public:
+    virtual ~Observer() {
+        unsubscribe_all();
+    }
+
+  private:
+    /// A subscription record.
+    struct Subscription {
+        /// The observable.
+        Observable<Args...>* observable = {};
+
+        /// The observable callback iterator, to erase when we unsubscribe.
+        Observable<Args...>::Callbacks::const_iterator observable_itr = {};
+
+        /// The reference countable base of the observable, which may be null!
+        ///
+        /// \note
+        /// An observable object is not necessarily reference countable. Even
+        /// if it is, the user may not be using its reference count to manage
+        /// its lifetime. In these cases, this pointer is null.
+        ///
+        RefCountable* ref = {};
+
+        void unsubscribe() {
+            // Unsubscribe.
+            observable->callbacks_.erase(observable_itr);
+            observable = {};
+            observable_itr = {};
+
+            // Potentially decrement reference count.
+            decr_ref(ref);
+            ref = {};
+        }
+    };
+
+    /// Subscription records.
+    std::vector<Subscription> subscrs_;
+
+  public:
+    template <concepts::subclass<Observable> Subclass>
+    void subscribe(
+            Subclass& subclass,
+            const IdString& what,
+            const Observable<Args...>::Callback& callback) {
+
+        // Initialize subscription.
+        Subscription subscr = {};
+        subscr.observable = &subclass;
+        subscr.observable_itr = subclass.callbacks_.insert({what, callback});
+
+        // Is subclass also reference countable?
+        if constexpr (concepts::subclass<Subclass, RefCountable>) {
+            // Is subclass actively being reference counted? If it is allocated
+            // on the stack, for example, then the lifetime of the object is
+            // implicit, and the reference count is zero by default.
+            if (subclass.ref_count != 0) {
+                // Ok, increment reference count.
+                subscr.ref = static_cast<RefCountable*>(&subclass);
+                incr_ref(subscr.ref);
+            }
+        }
+
+        // Add subscription.
+        subscrs_.push_back(subscr);
+    }
+
+    /// Unsubscribe from observable notification.
+    void unsubscribe(Observable<Args...>& observable, const IdString& what) {
+        for (auto itr = subscrs_.begin(); itr != subscrs_.end();) {
+            if (itr->observable == &observable &&
+                itr->observable_itr->first == what) {
+                itr->unsubscribe();
+                itr = subscrs_.erase(itr);
+            }
+            else {
+                ++itr;
+            }
+        }
+    }
+
+    /// Unsubscribe from observable.
+    void unsubscribe(Observable<Args...>& observable) {
+        for (auto itr = subscrs_.begin(); itr != subscrs_.end();) {
+            if (itr->observable == &observable) {
+                itr->unsubscribe();
+                itr = subscrs_.erase(itr);
+            }
+            else {
+                ++itr;
+            }
+        }
+    }
+
+    /// Unsubscribe from everything.
+    void unsubscribe_all() {
+        for (Subscription& subscr : subscrs_) {
+            subscr.unsubscribe();
+        }
+        // Clear subscriptions.
+        subscrs_.clear();
+    }
+};
+
+} // namespace pre
+
+#endif // #ifndef PRE_DESIGN_PATTERNS_OBSERVABLE

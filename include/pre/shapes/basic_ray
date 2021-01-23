@@ -1,0 +1,95 @@
+/*-*- C++ -*-*/
+/* Copyright (c) 2018-21 M. Grady Saunders
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
+ * are met:
+ *
+ *   1. Redistributions of source code must retain the above
+ *      copyright notice, this list of conditions and the following
+ *      disclaimer.
+ *
+ *   2. Redistributions in binary form must reproduce the above
+ *      copyright notice, this list of conditions and the following
+ *      disclaimer in the documentation and/or other materials
+ *      provided with the distribution.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED
+ * TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
+ * PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR
+ * CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
+ * EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
+ * PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
+ * PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY
+ * OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+ * NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+ * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
+/*-*-*-*-*-*-*/
+#if !(__cplusplus >= 201709L)
+#error "Precept requires >= C++20"
+#endif // #if !(__cplusplus >= 201709L)
+#pragma once
+#ifndef PRE_SHAPES_BASIC_RAY
+#define PRE_SHAPES_BASIC_RAY
+
+#include <pre/array>
+#include <pre/math>
+
+namespace pre {
+
+/// A basic ray.
+template <std::floating_point Float, size_t N>
+class BasicRay {
+  public:
+    static_assert(N == 2 || N == 3);
+
+    /// Position.
+    Array<Float, N> pos;
+
+    /// Direction.
+    Array<Float, N> dir;
+
+    /// Parameter minimum \f$ t_{\min} \f$.
+    Float tmin = 0;
+
+    /// Parameter maximum \f$ t_{\max} \f$.
+    mutable Float tmax = pre::numeric_limits<Float>::infinity();
+
+  public:
+    constexpr BasicRay() noexcept = default;
+
+    constexpr BasicRay(
+            const Array<Float, N>& p, const Array<Float, N>& d) noexcept
+        : pos(p), dir(d) {
+    }
+
+    constexpr BasicRay(
+            const Array<Float, N>& p,
+            const Array<Float, N>& d,
+            Float t0,
+            Float t1) noexcept
+        : pos(p), dir(d), tmin(t0), tmax(t1) {
+    }
+
+    constexpr bool is_in_range(Float t) const noexcept {
+        return tmin < t && t < tmax;
+    }
+
+    constexpr Array<Float, N> operator()(Float t) const noexcept {
+        return pos + dir * t;
+    }
+};
+
+template <typename T, typename U, size_t N>
+BasicRay(const Array<T, N>&, const Array<U, N>&)
+        -> BasicRay<to_floating_point_t<T, U>, N>;
+
+template <typename T, typename U, typename V, typename W, size_t N>
+BasicRay(const Array<T, N>&, const Array<U, N>&, const V&, const W&)
+        -> BasicRay<to_floating_point_t<T, U, V, W>, N>;
+
+} // namespace pre
+
+#endif // #ifndef PRE_SHAPES_BASIC_RAY

@@ -1,0 +1,254 @@
+/*-*- C++ -*-*/
+/* Copyright (c) 2018-20 M. Grady Saunders
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
+ * are met:
+ *
+ *   1. Redistributions of source code must retain the above
+ *      copyright notice, this list of conditions and the following
+ *      disclaimer.
+ *
+ *   2. Redistributions in binary form must reproduce the above
+ *      copyright notice, this list of conditions and the following
+ *      disclaimer in the documentation and/or other materials
+ *      provided with the distribution.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED
+ * TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
+ * PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR
+ * CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
+ * EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
+ * PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
+ * PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY
+ * OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+ * NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+ * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
+/*-*-*-*-*-*-*/
+#if !(__cplusplus >= 201709L)
+#error "Precept requires >= C++20"
+#endif // #if !(__cplusplus >= 201709L)
+#pragma once
+#ifndef PRE_MEMORY_MEM_POOL
+#define PRE_MEMORY_MEM_POOL
+
+// for assert
+#include <cassert>
+
+// for size_t, std::ptrdiff_t, ...
+#include <cstddef>
+
+// for std::memcpy
+#include <cstring>
+
+// for std::logic_error, std::invalid_argument, ...
+#include <stdexcept>
+
+// for std::allocator, std::allocator_traits, ...
+#include <memory>
+
+#include <utility>
+
+namespace pre {
+
+/// A memory pool.
+template <typename Alloc = std::allocator<std::byte>>
+class MemPool {
+  public:
+    typedef Alloc allocator_type;
+
+    typedef std::allocator_traits<Alloc> allocator_traits;
+
+    /// Constructor.
+    ///
+    /// \param[in] elem_size
+    /// Element size in bytes.
+    ///
+    /// \param[in] pool_size
+    /// Elements per pool. If left at default value of 0, this
+    /// is chosen so that the size of each pool is approximately 64KB.
+    ///
+    /// \param[in] alloc
+    /// Allocator.
+    ///
+    MemPool(size_t elem_size,
+            size_t pool_size = 0,
+            const Alloc& alloc = Alloc()) noexcept
+        : elem_size_(elem_size), pool_size_(pool_size), alloc_(alloc) {
+        if (elem_size_ < sizeof(void*))
+            elem_size_ = sizeof(void*);
+        if (pool_size_ == 0) {
+            pool_size_ = 65536 / elem_size;
+            if (pool_size_ == 0)
+                pool_size_ = 1;
+        }
+    }
+
+    MemPool(const MemPool&) = delete;
+
+    MemPool(MemPool&& other) noexcept
+        : elem_size_(std::exchange(other.elem_size_, 0)),
+          pool_size_(std::exchange(other.pool_size_, 0)),
+          first_(std::exchange(other.first_, nullptr)),
+          alloc_(std::move(other.alloc_)) {
+    }
+
+    MemPool(MemPool&& other, const Alloc& alloc)
+        : elem_size_(std::exchange(other.elem_size_, 0)),
+          pool_size_(std::exchange(other.pool_size_, 0)),
+          first_(std::exchange(other.first_, nullptr)), alloc_(alloc) {
+        // We need to be able to deallocate the pointers we stole!
+        if (alloc_ != other.alloc)
+            throw std::invalid_argument(__func__);
+    }
+
+    ~MemPool() {
+        reset();
+    }
+
+    MemPool& operator=(const MemPool&) = delete;
+
+    MemPool& operator=(MemPool&& other) noexcept {
+        elem_size_ = std::exchange(other.elem_size_, 0);
+        pool_size_ = std::exchange(other.pool_size_, 0);
+        first_ = std::exchange(other.first_, nullptr);
+        if constexpr (allocator_traits::
+                              propagate_on_container_move_assignment::value)
+            alloc_ = std::move(other.alloc_);
+        return *this;
+    }
+
+  public:
+    [[nodiscard]] void* allocate() {
+        Pool* pool = first_;
+        while (pool && pool->first_free == nullptr)
+            pool = pool->next;
+        if (pool == nullptr)
+            pool = pool_allocate_();
+        std::byte* elem = pool->first_free;
+        std::memcpy(&pool->first_free, pool->first_free, sizeof(void*));
+        pool->count++;
+        return elem;
+    }
+
+    void deallocate(void* ptr) {
+        if (ptr == nullptr)
+            return;
+        std::byte* elem = static_cast<std::byte*>(ptr);
+        Pool* pool = first_;
+        while (pool) {
+            // Element in range of pool?
+            std::ptrdiff_t pool_size = elem_size_ * pool_size_;
+            std::ptrdiff_t elem_diff = elem - pool->begin;
+            if (elem_diff >= 0 && elem_diff < pool_size) {
+                // Element in range of pool, but pointer is not
+                // aligned to element boundary?
+                if (elem_diff % std::ptrdiff_t(elem_size_) != 0)
+                    throw std::logic_error(__func__); // Garbage pointer!
+                break;
+            }
+            else {
+                pool = pool->next;
+            }
+        }
+        // Element not in range of any pool?
+        if (!pool)
+            throw std::logic_error(__func__); // Garbage pointer!
+        // Prepend.
+        std::memcpy(elem, &pool->first_free, sizeof(void*));
+        pool->first_free = elem;
+        pool->count--;
+    }
+
+    /// Clear.
+    void clear() noexcept {
+        for (Pool* pool = first_; pool; pool = pool->next)
+            pool_clear_(pool);
+    }
+
+    /// Clear and deallocate.
+    void reset() noexcept {
+        for (Pool* pool = first_; pool;) {
+            Pool* next = pool->next;
+            pool_deallocate_(pool);
+            pool = next; 
+        }
+        first_ = nullptr;
+    }
+
+    void swap(MemPool& other) noexcept {
+        if (this != &other) {
+            std::swap(elem_size_, other.elem_size_);
+            std::swap(pool_size_, other.pool_size_);
+            std::swap(first_, other.first_);
+            if constexpr (allocator_traits::propagate_on_container_swap::value)
+                std::swap(alloc_, other.alloc_);
+        }
+    }
+
+  private:
+    /// Pool type.
+    struct alignas(16) Pool {
+        Pool* next;            ///< Pointer to next pool.
+        std::byte* begin;      ///< Pointer to elements.
+        std::byte* first_free; ///< Pointer to first free element.
+        size_t count;          ///< Element allocation count.
+    };
+
+    size_t elem_size_ = 0; ///< Element size in bytes.
+    size_t pool_size_ = 0; ///< Pool size in elements.
+
+    /// First pool in list.
+    Pool* first_ = nullptr;
+
+    /// Allocator.
+    typename allocator_traits::template rebind_alloc<std::byte> alloc_;
+
+  private:
+    Pool* pool_allocate_() {
+        auto* ptr = alloc_.allocate(sizeof(Pool) + elem_size_ * pool_size_);
+        Pool* pool = reinterpret_cast<Pool*>(ptr);
+        pool->next = nullptr;
+        pool->begin = ptr + sizeof(Pool);
+        pool->count = 0;
+        pool_clear_(pool);
+        // Append.
+        if (first_ == nullptr) {
+            first_ = pool; // Set first.
+        }
+        else {
+            Pool* last = first_;
+            while (last->next)
+                last = last->next;
+            last->next = pool;
+        }
+        return pool;
+    }
+
+    void pool_deallocate_(Pool* pool) {
+        alloc_.deallocate(
+                reinterpret_cast<std::byte*>(pool),
+                sizeof(Pool) + elem_size_ * pool_size_);
+    }
+
+    void pool_clear_(Pool* pool) {
+        // Link all elements sequentially.
+        pool->first_free = pool->begin;
+        for (size_t index = 0; index + 1 < pool_size_; index++) {
+            std::byte* elem0 = pool->begin + (index + 0) * elem_size_;
+            std::byte* elem1 = pool->begin + (index + 1) * elem_size_;
+            std::memcpy(elem0, &elem1, sizeof(void*));
+        }
+        std::byte* elem0 = pool->begin + (pool_size_ - 1) * elem_size_;
+        std::byte* elem1 = nullptr;
+        std::memcpy(elem0, &elem1, sizeof(void*));
+        // Zero count.
+        pool->count = 0;
+    }
+};
+
+} // namespace pre
+
+#endif // #ifndef PRE_MEMORY_MEM_POOL

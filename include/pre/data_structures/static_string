@@ -1,0 +1,199 @@
+/*-*- C++ -*-*/
+/* Copyright (c) 2018-21 M. Grady Saunders
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
+ * are met:
+ *
+ *   1. Redistributions of source code must retain the above
+ *      copyright notice, this list of conditions and the following
+ *      disclaimer.
+ *
+ *   2. Redistributions in binary form must reproduce the above
+ *      copyright notice, this list of conditions and the following
+ *      disclaimer in the documentation and/or other materials
+ *      provided with the distribution.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED
+ * TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
+ * PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR
+ * CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
+ * EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
+ * PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
+ * PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY
+ * OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+ * NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+ * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
+/*-*-*-*-*-*-*/
+#if !(__cplusplus >= 201709L)
+#error "Precept requires >= C++20"
+#endif // #if !(__cplusplus >= 201709L)
+#pragma once
+#ifndef PRE_DATA_STRUCTURES_STATIC_STRING
+#define PRE_DATA_STRUCTURES_STATIC_STRING
+
+// for std::copy
+#include <algorithm>
+
+// for std::string
+#include <string>
+
+// for std::string_view
+#include <string_view>
+
+#include <pre/common>
+
+namespace pre {
+
+/// A static string.
+///
+/// \tparam Char
+/// String character type.
+///
+/// \tparam BufSize
+/// String character capacity, must be greater than 1 (because
+/// 1 character is always used as null terminator).
+///
+template <typename Char, size_t BufSize>
+struct StaticString : ArrayLike<StaticString<Char, BufSize>, Char> {
+  public:
+    // Sanity check.
+    static_assert(std::integral<Char> && BufSize > 1);
+
+    constexpr StaticString() noexcept = default;
+
+    constexpr StaticString(const StaticString&) noexcept = default;
+
+    constexpr StaticString(StaticString&&) noexcept = default;
+
+    template <typename... Args>
+    StaticString(const std::basic_string<Char, Args...>& str) {
+        if (str.size() > max_size())
+            throw std::invalid_argument(__func__);
+        std::copy(str.begin(), str.end(), begin());
+        len_ = str.size();
+    }
+
+    template <typename... Args>
+    constexpr StaticString(const std::basic_string_view<Char, Args...>& str) {
+        if (str.size() > max_size())
+            throw std::invalid_argument(__func__);
+        std::copy(str.begin(), str.end(), begin());
+        len_ = str.size();
+    }
+
+    constexpr StaticString(const Char* str)
+        : StaticString(std::basic_string_view<Char>(str)) {
+    }
+
+    template <size_t OtherBufSize>
+    constexpr StaticString(const StaticString<Char, OtherBufSize>& str)
+        : StaticString(str.view()) {
+    }
+
+    constexpr StaticString& operator=(const StaticString&) = default;
+
+    constexpr StaticString& operator=(StaticString&&) = default;
+
+  public:
+    /// \name Container API
+    /** \{ */
+
+    constexpr size_t size() const noexcept {
+        return len_;
+    }
+
+    constexpr size_t max_size() const noexcept {
+        return BufSize - 1;
+    }
+
+    constexpr size_t capacity() const noexcept {
+        return BufSize - 1;
+    }
+
+    constexpr Char* begin() noexcept {
+        return &buf_[0];
+    }
+
+    constexpr const Char* begin() const noexcept {
+        return &buf_[0];
+    }
+
+    constexpr Char* end() noexcept {
+        return &buf_[0] + len_;
+    }
+
+    constexpr const Char* end() const noexcept {
+        return &buf_[0] + len_;
+    }
+
+    constexpr void clear() noexcept {
+        std::fill(begin(), end(), Char(0));
+        len_ = 0;
+    }
+
+    constexpr void resize(size_t len) {
+        if (len > max_size())
+            throw std::invalid_argument(__func__);
+        len_ = len;
+        buf_[len] = Char(0);
+    }
+
+    /** \} */
+
+    /// \name String
+    /** \{ */
+
+    constexpr size_t length() const noexcept {
+        return len_;
+    }
+
+    constexpr const Char* c_str() const noexcept {
+        return &buf_[0];
+    }
+
+    template <typename... Args>
+    operator std::basic_string<Char, Args...>() const {
+        return &buf_[0];
+    }
+
+    template <typename... Args>
+    constexpr operator std::basic_string_view<Char, Args...>() const noexcept {
+        return {&buf_[0], len_};
+    }
+
+    constexpr std::basic_string_view<Char> view() const noexcept {
+        return *this;
+    }
+
+    template <size_t OtherBufSize>
+    constexpr auto operator<=>(
+            const StaticString<Char, OtherBufSize>& other) const noexcept {
+        return view() <=> other.view();
+    }
+
+    template <size_t OtherBufSize>
+    constexpr bool operator==(
+            const StaticString<Char, OtherBufSize>& other) const noexcept {
+        return view() == other.view();
+    }
+
+    /** \} */
+
+  public:
+    void serialize(auto& serializer) {
+        serializer <=> buf_;
+        serializer <=> len_;
+    }
+
+  private:
+    Char buf_[BufSize] = {};
+
+    size_t len_ = 0;
+};
+
+} // namespace pre
+
+#endif // #ifndef PRE_DATA_STRUCTURES_STATIC_STRING

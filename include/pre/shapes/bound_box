@@ -1,0 +1,277 @@
+/*-*- C++ -*-*/
+/* Copyright (c) 2018-20 M. Grady Saunders
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
+ * are met:
+ *
+ *   1. Redistributions of source code must retain the above
+ *      copyright notice, this list of conditions and the following
+ *      disclaimer.
+ *
+ *   2. Redistributions in binary form must reproduce the above
+ *      copyright notice, this list of conditions and the following
+ *      disclaimer in the documentation and/or other materials
+ *      provided with the distribution.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED
+ * TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
+ * PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR
+ * CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
+ * EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
+ * PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
+ * PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY
+ * OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+ * NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+ * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
+/*-*-*-*-*-*-*/
+#if !(__cplusplus >= 201709L)
+#error "Precept requires >= C++20"
+#endif // #if !(__cplusplus >= 201709L)
+#pragma once
+#ifndef PRE_SHAPES_BOUND_BOX
+#define PRE_SHAPES_BOUND_BOX
+
+#include <pre/array>
+#include <pre/math>
+
+namespace pre {
+
+/// An axis-aligned bounding box.
+template <concepts::arithmetic Entry, size_t N>
+struct BoundBox : ArrayLike<BoundBox<Entry, N>, Array<Entry, N>> {
+  public:
+    constexpr BoundBox() noexcept = default;
+
+    constexpr BoundBox(const Array<Entry, N>& point) noexcept
+        : points_{point, point} {
+    }
+
+    constexpr BoundBox(
+            const Array<Entry, N>& point0,
+            const Array<Entry, N>& point1) noexcept
+        : points_{point0, point1} {
+    }
+
+    /// Construct as union over range.
+    template <std::input_iterator Iterator>
+    explicit constexpr BoundBox(Iterator from, Iterator to) noexcept {
+        while (from != to)
+            *this |= *from++;
+    }
+
+    /// Construct as union over range with custom iterator cast.
+    template <std::input_iterator Iterator, std::invocable<Iterator> Cast>
+    explicit constexpr BoundBox(Iterator from, Iterator to, Cast&& cast) {
+        while (from != to)
+            *this |= std::invoke(cast, from++);
+    }
+
+  public:
+    /// \name Container API
+    /** \{ */
+
+    constexpr size_t size() const noexcept {
+        return 2;
+    }
+
+    constexpr Array<Entry, N>* begin() noexcept {
+        return &points_[0];
+    }
+
+    constexpr const Array<Entry, N>* begin() const noexcept {
+        return &points_[0];
+    }
+
+    constexpr Array<Entry, N>* end() noexcept {
+        return &points_[0] + 2;
+    }
+
+    constexpr const Array<Entry, N>* end() const noexcept {
+        return &points_[0] + 2;
+    }
+
+    /** \} */
+
+  public:
+    constexpr const Array<Entry, N>& min() const noexcept {
+        return points_[0];
+    }
+
+    constexpr const Array<Entry, N>& max() const noexcept {
+        return points_[1];
+    }
+
+    constexpr bool overlaps(const BoundBox& other) const noexcept {
+        return (min() <= other.max() && max() >= other.min()).all();
+    }
+
+    constexpr bool contains(const BoundBox& other) const noexcept {
+        return (min() <= other.min() && max() >= other.max()).all();
+    }
+
+    constexpr bool overlaps(const Array<Entry, N>& point) const noexcept {
+        return overlaps(BoundBox(point));
+    }
+
+    constexpr bool contains(const Array<Entry, N>& point) const noexcept {
+        return contains(BoundBox(point));
+    }
+
+    constexpr BoundBox expand(Entry eps) const noexcept {
+        return {min() - eps, max() + eps};
+    }
+
+    constexpr BoundBox expand_relative(Entry eps) const noexcept
+            requires std::floating_point<Entry> {
+        auto cen = center();
+        auto off = (1 + eps) / 2 * diag();
+        return BoundBox{cen - off, cen + off};
+    }
+
+    constexpr Array<Entry, N> diag() const noexcept {
+        return max() - min();
+    }
+
+    constexpr Array<Entry, N> center() const noexcept {
+        return (min() + max()) / 2;
+    }
+
+    constexpr Array<Entry, N> clamp(
+            const Array<Entry, N>& point) const noexcept {
+        return pre::clamp(point, min(), max());
+    }
+
+    /// Hyper volume.
+    ///
+    /// \note
+    /// - In 2 dimensions, this measures signed area.
+    /// - In 3 dimensions, this measures signed volume.
+    /// - ...
+    ///
+    constexpr Entry volume() const noexcept {
+        return diag().prod();
+    }
+
+    /// Hyper surface area.
+    ///
+    /// \note
+    /// - In 2 dimensions, this measures signed perimeter.
+    /// - In 3 dimensions, this measures signed surface area.
+    /// - ...
+    ///
+    constexpr Entry surface_area() const noexcept {
+        if constexpr (N == 1) {
+            return 1;
+        }
+        else {
+            Entry area = 0;
+            Array<Entry, N> dims = diag();
+            for (size_t k = 0; k < N; k++) {
+                Entry prod = 1;
+                for (size_t j = 0; j < N; j++)
+                    if (j != k)
+                        prod *= dims[j];
+                area += prod;
+            }
+            return 2 * area; // Wrong for N = 1.
+        }
+    }
+
+    template <std::floating_point Float>
+    constexpr auto operator()(const Array<Float, N>& fac) const noexcept {
+        return lerp(fac, min(), max());
+    }
+
+    template <std::floating_point Float, std::floating_point... Floats>
+    constexpr auto operator()(Float fac0, Floats&&... facs) const noexcept {
+        return lerp(Array{fac0, facs...}, min(), max());
+    }
+
+  public:
+    /// \name Set operators
+    /** \{ */
+
+    constexpr BoundBox operator|(const BoundBox& other) const noexcept {
+        return {pre::min(min(), other.min()), pre::max(max(), other.max())};
+    }
+
+    constexpr BoundBox operator&(const BoundBox& other) const noexcept {
+        return {pre::max(min(), other.min()), pre::min(max(), other.max())};
+    }
+
+    constexpr BoundBox operator|(const Array<Entry, N>& point) const noexcept {
+        return *this | BoundBox(point);
+    }
+
+    constexpr BoundBox operator&(const Array<Entry, N>& point) const noexcept {
+        return *this & BoundBox(point);
+    }
+
+    friend constexpr BoundBox operator|(
+            const Array<Entry, N>& point, const BoundBox& box) noexcept {
+        return BoundBox(point) | box;
+    }
+
+    friend constexpr BoundBox operator&(
+            const Array<Entry, N>& point, const BoundBox& box) noexcept {
+        return BoundBox(point) & box;
+    }
+
+    constexpr BoundBox& operator|=(const auto& any) noexcept {
+        return *this = *this | any;
+    }
+
+    constexpr BoundBox& operator&=(const auto& any) noexcept {
+        return *this = *this & any;
+    }
+
+    /** \} */
+
+  public:
+    /// Implicit cast as bool. (Is hyper volume non-negative?)
+    constexpr operator bool() const noexcept {
+        return (min() <= max()).all();
+    }
+
+    /// Implicit cast as other.
+    template <typename Other, size_t M>
+    constexpr operator BoundBox<Other, M>() const noexcept {
+        return {Array<Other, M>(points_[0]), Array<Other, M>(points_[1])};
+    }
+
+  public:
+    void serialize(auto& serializer) {
+        serializer <=> points_;
+    }
+
+  private:
+    Array<Entry, N> points_[2] = {
+            Array<Entry, N>(+pre::numeric_limits<Entry>::max()),
+            Array<Entry, N>(-pre::numeric_limits<Entry>::max())};
+};
+
+template <typename T, size_t N>
+BoundBox(const Array<T, N>&) -> BoundBox<T, N>;
+
+template <typename T, typename U, size_t N>
+BoundBox(const Array<T, N>&, const Array<U, N>&)
+        -> BoundBox<std::common_type_t<T, U>, N>;
+
+template <typename T>
+using BoundBox1 = BoundBox<T, 1>;
+
+template <typename T>
+using BoundBox2 = BoundBox<T, 2>;
+
+template <typename T>
+using BoundBox3 = BoundBox<T, 3>;
+
+template <typename T>
+using BoundBox4 = BoundBox<T, 4>;
+
+} // namespace pre
+
+#endif // #ifndef PRE_SHAPES_BOUND_BOX
