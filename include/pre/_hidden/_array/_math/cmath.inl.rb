@@ -97,7 +97,11 @@ for func in funcs
     for arg in func[1]
         if arg[0][-1] != '*' 
             args1 << "const Array<#{arg[0]}, N...>& #{arg[1]}"
-            args2 << "std::declval<const #{arg[0]}&>()"
+            args2 << if arg[0] == 'T'
+               "#{arg[0]}()"
+            else
+               "std::declval<#{arg[0]}>()"
+            end
             args3 << "*itr#{arg[1]}"
             decls << "auto itr#{arg[1]} = #{arg[1]}.begin();"
         else
@@ -114,13 +118,11 @@ for func in funcs
     incrs << "++itrres"
     incrs = incrs.join ", "
     decls = decls.join "\n"
-    restypedecl = "using U = decltype(pre::#{funcname}(#{args2}))"
-    restype = "Array<U, N...>"
+    restype = "Array<decltype(pre::#{funcname}(#{args2})), N...>"
     puts <<STR
 template <typename T, size_t... N>
 inline auto #{funcname}(#{args1}) noexcept
 {
-    #{restypedecl};
     #{restype} res;
     #{decls}
     auto itrres = res.begin();

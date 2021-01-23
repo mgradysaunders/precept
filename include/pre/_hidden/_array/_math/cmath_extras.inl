@@ -6,9 +6,7 @@ namespace pre {
 template <typename T, size_t... N>
 inline auto min(
         const Array<T, N...>& arrx, const Array<T, N...>& arry) noexcept {
-    using U = decltype(
-            pre::min(std::declval<const T&>(), std::declval<const T&>()));
-    Array<U, N...> res;
+    Array<decltype(pre::min(T(), T())), N...> res;
     auto itrarrx = arrx.begin();
     auto itrarry = arry.begin();
     auto itrres = res.begin();
@@ -20,9 +18,7 @@ inline auto min(
 template <typename T, size_t... N>
 inline auto max(
         const Array<T, N...>& arrx, const Array<T, N...>& arry) noexcept {
-    using U = decltype(
-            pre::max(std::declval<const T&>(), std::declval<const T&>()));
-    Array<U, N...> res;
+    Array<decltype(pre::max(T(), T())), N...> res;
     auto itrarrx = arrx.begin();
     auto itrarry = arry.begin();
     auto itrres = res.begin();
@@ -36,10 +32,7 @@ inline auto clamp(
         const Array<T, N...>& arrx,
         const Array<T, N...>& arra,
         const Array<T, N...>& arrb) noexcept {
-    using U = decltype(pre::clamp(
-            std::declval<const T&>(), std::declval<const T&>(),
-            std::declval<const T&>()));
-    Array<U, N...> res;
+    Array<decltype(pre::clamp(T(), T(), T())), N...> res;
     auto itrarrx = arrx.begin();
     auto itrarra = arra.begin();
     auto itrarrb = arrb.begin();
@@ -52,9 +45,7 @@ inline auto clamp(
 template <typename T, size_t... N>
 inline auto nthpow(
         const Array<T, N...>& arrx, const Array<int, N...>& arrn) noexcept {
-    using U = decltype(
-            pre::nthpow(std::declval<const T&>(), std::declval<const int&>()));
-    Array<U, N...> res;
+    Array<decltype(pre::nthpow(T(), std::declval<int>())), N...> res;
     auto itrarrx = arrx.begin();
     auto itrarrn = arrn.begin();
     auto itrres = res.begin();
@@ -67,9 +58,7 @@ template <typename T, size_t... N>
 inline auto rotl(
         const Array<T, N...>& arrval,
         const Array<unsigned, N...>& arrrot) noexcept {
-    using U = decltype(pre::rotl(
-            std::declval<const T&>(), std::declval<const unsigned&>()));
-    Array<U, N...> res;
+    Array<decltype(pre::rotl(T(), std::declval<unsigned>())), N...> res;
     auto itrarrval = arrval.begin();
     auto itrarrrot = arrrot.begin();
     auto itrres = res.begin();
@@ -82,9 +71,7 @@ template <typename T, size_t... N>
 inline auto rotr(
         const Array<T, N...>& arrval,
         const Array<unsigned, N...>& arrrot) noexcept {
-    using U = decltype(pre::rotr(
-            std::declval<const T&>(), std::declval<const unsigned&>()));
-    Array<U, N...> res;
+    Array<decltype(pre::rotr(T(), std::declval<unsigned>())), N...> res;
     auto itrarrval = arrval.begin();
     auto itrarrrot = arrrot.begin();
     auto itrres = res.begin();
@@ -95,8 +82,7 @@ inline auto rotr(
 
 template <typename T, size_t... N>
 inline auto float_incr(const Array<T, N...>& arrx) noexcept {
-    using U = decltype(pre::float_incr(std::declval<const T&>()));
-    Array<U, N...> res;
+    Array<decltype(pre::float_incr(T())), N...> res;
     auto itrarrx = arrx.begin();
     auto itrres = res.begin();
     for (; itrres < res.end(); ++itrarrx, ++itrres)
@@ -106,8 +92,7 @@ inline auto float_incr(const Array<T, N...>& arrx) noexcept {
 
 template <typename T, size_t... N>
 inline auto float_decr(const Array<T, N...>& arrx) noexcept {
-    using U = decltype(pre::float_decr(std::declval<const T&>()));
-    Array<U, N...> res;
+    Array<decltype(pre::float_decr(T())), N...> res;
     auto itrarrx = arrx.begin();
     auto itrres = res.begin();
     for (; itrres < res.end(); ++itrarrx, ++itrres)
@@ -117,8 +102,7 @@ inline auto float_decr(const Array<T, N...>& arrx) noexcept {
 
 template <typename T, size_t... N>
 inline auto fast_floor(const Array<T, N...>& arrx) noexcept {
-    using U = decltype(pre::fast_floor(std::declval<const T&>()));
-    Array<U, N...> res;
+    Array<decltype(pre::fast_floor(T())), N...> res;
     auto itrarrx = arrx.begin();
     auto itrres = res.begin();
     for (; itrres < res.end(); ++itrarrx, ++itrres)
@@ -128,8 +112,7 @@ inline auto fast_floor(const Array<T, N...>& arrx) noexcept {
 
 template <typename T, size_t... N>
 inline auto fast_ceil(const Array<T, N...>& arrx) noexcept {
-    using U = decltype(pre::fast_ceil(std::declval<const T&>()));
-    Array<U, N...> res;
+    Array<decltype(pre::fast_ceil(T())), N...> res;
     auto itrarrx = arrx.begin();
     auto itrres = res.begin();
     for (; itrres < res.end(); ++itrarrx, ++itrres)
@@ -139,8 +122,7 @@ inline auto fast_ceil(const Array<T, N...>& arrx) noexcept {
 
 template <typename T, size_t... N>
 inline auto fast_trunc(const Array<T, N...>& arrx) noexcept {
-    using U = decltype(pre::fast_trunc(std::declval<const T&>()));
-    Array<U, N...> res;
+    Array<decltype(pre::fast_trunc(T())), N...> res;
     auto itrarrx = arrx.begin();
     auto itrres = res.begin();
     for (; itrres < res.end(); ++itrarrx, ++itrres)
@@ -150,8 +132,7 @@ inline auto fast_trunc(const Array<T, N...>& arrx) noexcept {
 
 template <typename T, size_t... N>
 inline auto fast_round(const Array<T, N...>& arrx) noexcept {
-    using U = decltype(pre::fast_round(std::declval<const T&>()));
-    Array<U, N...> res;
+    Array<decltype(pre::fast_round(T())), N...> res;
     auto itrarrx = arrx.begin();
     auto itrres = res.begin();
     for (; itrres < res.end(); ++itrarrx, ++itrres)
@@ -161,8 +142,7 @@ inline auto fast_round(const Array<T, N...>& arrx) noexcept {
 
 template <typename T, size_t... N>
 inline auto sinpi(const Array<T, N...>& arrx) noexcept {
-    using U = decltype(pre::sinpi(std::declval<const T&>()));
-    Array<U, N...> res;
+    Array<decltype(pre::sinpi(T())), N...> res;
     auto itrarrx = arrx.begin();
     auto itrres = res.begin();
     for (; itrres < res.end(); ++itrarrx, ++itrres)
@@ -172,8 +152,7 @@ inline auto sinpi(const Array<T, N...>& arrx) noexcept {
 
 template <typename T, size_t... N>
 inline auto cospi(const Array<T, N...>& arrx) noexcept {
-    using U = decltype(pre::cospi(std::declval<const T&>()));
-    Array<U, N...> res;
+    Array<decltype(pre::cospi(T())), N...> res;
     auto itrarrx = arrx.begin();
     auto itrres = res.begin();
     for (; itrres < res.end(); ++itrarrx, ++itrres)
@@ -183,8 +162,7 @@ inline auto cospi(const Array<T, N...>& arrx) noexcept {
 
 template <typename T, size_t... N>
 inline auto erfinv(const Array<T, N...>& arrx) noexcept {
-    using U = decltype(pre::erfinv(std::declval<const T&>()));
-    Array<U, N...> res;
+    Array<decltype(pre::erfinv(T())), N...> res;
     auto itrarrx = arrx.begin();
     auto itrres = res.begin();
     for (; itrres < res.end(); ++itrarrx, ++itrres)
