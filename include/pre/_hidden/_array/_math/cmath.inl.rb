@@ -118,8 +118,7 @@ for func in funcs
     restype = "Array<U, N...>"
     puts <<STR
 template <typename T, size_t... N>
-[[gnu::always_inline]]
-inline auto #{funcname}(#{args1})
+inline auto #{funcname}(#{args1}) noexcept
 {
     #{restypedecl};
     #{restype} res;

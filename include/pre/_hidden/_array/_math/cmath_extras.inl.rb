@@ -51,9 +51,8 @@ for func in funcs
     restypedecl = "using U = decltype(pre::#{funcname}(#{args2}))"
     restype = "Array<U, N...>"
     puts <<STR
-/// Wrap `pre::#{funcname}()`.
 template <typename T, size_t... N>
-inline auto #{funcname}(#{args1})
+inline auto #{funcname}(#{args1}) noexcept
 {
     #{restypedecl};
     #{restype} res;

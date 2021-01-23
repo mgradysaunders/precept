@@ -140,11 +140,9 @@ struct MultiIndex : ArrayLike<MultiIndex<R>, ssize_t> {
     }
 
   public:
-    /// Values.
     ssize_t values[R] = {};
 
   public:
-    /// Lexicographical comparison.
     constexpr auto operator<=>(const MultiIndex& other) const noexcept {
         auto itr1 = this->begin();
         auto itr2 = other.begin();
@@ -157,7 +155,6 @@ struct MultiIndex : ArrayLike<MultiIndex<R>, ssize_t> {
         return std::strong_ordering::equal;
     }
 
-    /// Lexicographical comparison.
     constexpr bool operator==(const MultiIndex& other) const noexcept {
         auto itr1 = this->begin();
         auto itr2 = other.begin();
@@ -171,7 +168,6 @@ struct MultiIndex : ArrayLike<MultiIndex<R>, ssize_t> {
 template <>
 struct MultiIndex<0> {};
 
-/// Deduction guide.
 template <std::integral... Ints>
 MultiIndex(Ints... ints) -> MultiIndex<sizeof...(Ints)>;
 
