@@ -36,11 +36,9 @@ struct Linalg {
         MemStack<Alloc> mem_stack_;
     };
 
-    /// Local cache.
     Cache cache_;
 
   private:
-    /// Expect condition at runtime, else throw `std::runtime_error`.
     static void expect(bool cond, const char* what) {
         if (!cond)
             throw std::runtime_error(what);
@@ -50,20 +48,17 @@ struct Linalg {
     /// \name Miscellaneous
     /** \{ */
 
-    /// Load identity into matrix.
     static constexpr void load_identity(MatView<Field> a) noexcept {
         a = Field(0);
         a.diag() = Field(1);
     }
 
-    /// Load iota into vector.
     static constexpr void load_iota(VecView<int> v) noexcept {
         int n = 0;
         for (int& i : v)
             i = n++;
     }
 
-    /// Force matrix to be upper triangular (set lower triangle to zero).
     static constexpr void force_upper_triangular(MatView<Field> a) noexcept {
         int m = a.rows();
         int n = a.cols();
@@ -71,7 +66,6 @@ struct Linalg {
             a(i, Slice(0, pre::min(i, n))) = Field(0);
     }
 
-    /// Force matrix to be lower triangular (set upper triangle to zero).
     static constexpr void force_lower_triangular(MatView<Field> a) noexcept {
         int m = a.rows();
         int n = a.cols();
@@ -79,10 +73,9 @@ struct Linalg {
             a(Slice(0, pre::min(j, m)), j) = Field(0);
     }
 
-    /// Take adjoint in-place.
     static constexpr void do_adjoint(MatView<Field> a) noexcept {
         ASSERT(a.is_square());
-        const int m = a.rows();
+        int m = a.rows();
         for (int i = 0; i < m; i++) {
             a(i, i) = pre::conj(a(i, i));
             for (int j = i + 1; j < m; j++) {
@@ -94,7 +87,7 @@ struct Linalg {
         }
     }
 
-    static int find_pivot(VecView<Field> v) noexcept {
+    static constexpr int find_pivot(VecView<Field> v) noexcept {
         Float tmp_max = 0;
         int piv = 0;
         int n = v.size();
@@ -106,20 +99,6 @@ struct Linalg {
             }
         }
         return piv;
-    }
-
-    template <typename Lhs, concepts::floating_point_or_complex Rhs>
-    static constexpr bool robust_div(Lhs&& lhs, Rhs rhs) noexcept {
-        if (Float tmp = pre::abs(rhs); tmp > 0) {
-            if (tmp >= Float(2) * FloatLimits::min_invertible())
-                lhs *= Float(1) / rhs;
-            else
-                lhs /= rhs;
-            return true;
-        }
-        else {
-            return false;
-        }
     }
 
     /** \} */
@@ -151,7 +130,7 @@ struct Linalg {
         else if (
                 absv_max * absv_max * n > FloatLimits::max() ||
                 absv_max < FloatLimits::min_squarable()) {
-            robust_div(absv, absv_max);
+            absv /= absv_max;
             return pre::sqrt(pre::sum(pre::norm(*absv))) * absv_max;
         }
         else {
@@ -161,18 +140,24 @@ struct Linalg {
 
     /// Normalize with respect to \f$ L^1 \f$ norm.
     Float normalize1(VecView<Field> v) noexcept {
-        const Float len = norm1(v);
-        if (!robust_div(v, len))
-            v = Field(0); // Error
-        return len;
+        if (auto len = norm1(v); len > 0) {
+            v /= len;
+            return len;
+        }
+        else {
+            return 0;
+        }
     }
 
     /// Normalize with respect to \f$ L^2 \f$ norm.
     Float normalize2(VecView<Field> v) noexcept {
-        const Float len = norm2(v);
-        if (!robust_div(v, len))
-            v = Field(0); // Error
-        return len;
+        if (auto len = norm2(v); len > 0) {
+            v /= len;
+            return len;
+        }
+        else {
+            return 0;
+        }
     }
 
     /** \} */
@@ -312,7 +297,7 @@ struct Linalg {
             akk = pre::sqrt(akk);
             expect(pre::isfinite(akk) && pre::abs(akk) > eps,
                    "hermitian and positive semi-definite matrix");
-            robust_div(a(k, Slice(k + 1, n)), akk);
+            a(k, Slice(k + 1, n)) /= akk;
             for (int j = k + 1; j < n; j++)
                 for (int i = k + 1; i < j + 1; i++) {
                     a(i, j) = a(i, j) - a(k, j) * pre::conj(a(k, i));
@@ -389,44 +374,212 @@ struct Linalg {
         load_identity(q);
         auto m = SliceInt(a.rows());
         auto n = SliceInt(a.cols());
-        for (int k = 0; k < pre::min(m, n); k++) {
-            auto _ = cache_.scoped_push();
-            auto w = householder00(a(k | m, k | n));
-            householder_reflect(w, q(k | m, 0 | m));
-        }
+        for (int k = 0; k < pre::min(m, n); k++)
+            householderl(k, k, a, q);
         do_adjoint(q);
     }
 
   private:
-    /// Householder reflect all column vectors in matrix.
-    static constexpr void householder_reflect(
+    /// Apply Householder reflection from left.
+    static constexpr void householderl_reflection(
             VecView<const Field> w, MatView<Field> a) noexcept {
-        auto m = SliceInt(a.rows());
-        auto n = SliceInt(a.cols());
-        for (int j = 0; j < n; j++) {
-            auto c = a(0 | m, j);
-            c = *c - (Field(2) * dot(pre::conj(*w), *c)) * (*w);
+        if (!a.empty()) {
+            ASSERT(w.size() == a.rows());
+            int m = a.rows();
+            int n = a.cols();
+            for (int j = 0; j < n; j++) {
+                auto c = a(Slice(0, m), j);
+                c = *c - (Float(2) * dot(pre::conj(*w), *c)) * (*w);
+            }
         }
     }
 
-    /// Apply Householder transform to element 0, 0 of given matrix.
-    VecView<Field> householder00(MatView<Field> a) {
+    /// Householder reflection step targeting (0, 0) from left in submatrix.
+    VecView<Field> householderl00(MatView<Field> a) {
         auto m = SliceInt(a.rows());
         auto n = SliceInt(a.cols());
-        auto w0 = cache_.template vector<Field>(m);
-        auto a0 = a(0 | m, 0);
-        w0 = *a0;
-        a0[0] = -norm2(w0) * sign(w0[0]), a0(1 | m) = Field(0);
-        w0[0] -= a0[0];
-        normalize2(w0);
-        householder_reflect(w0, a(0 | m, 1 | n));
-        return w0;
+        auto w = cache_.template vector<Field>(m);
+        auto c = a(0 | m, 0);
+        w = *c;
+        c[0] = -norm2(w) * sign(w[0]);
+        w[0] -= c[0];
+        c(1 | m) = Field(0);
+        normalize2(w);
+        householderl_reflection(w, a(0 | m, 1 | n));
+        return w;
+    }
+
+    /// Householder reflection step targeting (s, t) from left.
+    void householderl(int s, int t, MatView<Field> x, MatView<Field> y) {
+        auto m = SliceInt(x.rows());
+        auto n = SliceInt(x.cols());
+        if (s >= 0 && s < m && //
+            t >= 0 && t < n) {
+            auto _ = cache_.scoped_push();
+            auto w = householderl00(x(s | m, t | n));
+            if (!y.empty())
+                householderl_reflection(w, y(s | m, 0 | m)); // Accumulate
+        }
+    }
+
+    /// Householder reflection step targeting (s, t) from right.
+    void householderr(int s, int t, MatView<Field> x, MatView<Field> y) {
+        householderl(t, s, x.transpose(), y.transpose());
+    }
+
+    /** \} */
+
+  public:
+    /// \name Factorization: SVD
+    /** \{ */
+
+    /// Factorize.
+    ///
+    /// \param[inout] x  Matrix \f$ X \to \Sigma \f$.
+    /// \param[out]   u  _Optional_. Matrix \f$ U \f$.
+    /// \param[out]   v  _Optional_. Matrix \f$ V \f$.
+    ///
+    void svd(MatView<Field> x, MatView<Field> u = {}, MatView<Field> v = {}) {
+        const int m = x.rows();
+        const int n = x.cols();
+        if (m < n) {
+            svd(x.transpose(), v.transpose(), u.transpose());
+            return;
+        }
+        // First reduce to upper bidiagonal.
+        load_identity(u);
+        load_identity(v);
+        ASSERT(u.empty() || (u.is_square() && u.size() == x.rows()));
+        ASSERT(v.empty() || (v.is_square() && v.size() == x.cols()));
+        for (int k = 0; k < std::min(m, n); k++) {
+            householderl(k, k + 0, x, u);
+            householderr(k, k + 1, x, v);
+        }
+        // Golub-Kahan loop.
+        int itr = 0;
+        while (1) {
+            // Find target indices.
+            Float thresh = pre::max(pre::abs(*x.diag(0))) *
+                           (FloatLimits::epsilon() * Float(8));
+            int s = 0;
+            while (s < n - 1 && pre::abs(x.diag(1)[s]) < thresh)
+                s++;
+            int t = s + 1;
+            while (t < n - 1 && pre::abs(x.diag(1)[t]) > thresh)
+                t++;
+            if (t == n)
+                break;
+            // Form Gram submatrix terms.
+            Field y0 = s + 1 < t ? x.diag(1)[t - 2] : Field();
+            Field y1 = x.diag(1)[t - 1];
+            Field z0 = x.diag(0)[t - 1];
+            Field z1 = x.diag(0)[t];
+            Float g00 = std::norm(y0) + std::norm(z0);
+            Float g11 = std::norm(y1) + std::norm(z1);
+            Float off = std::norm(z0) + std::norm(y1);
+            // Form coefficients of characteristic polynomial.
+            Float b = -g00 - g11;
+            Float c = g00 * g11 - off;
+            // Eigenvalues.
+            b /= -2;
+            Float d = std::fdim(b * b, c);
+            Float lam0 = b + std::copysign(std::sqrt(d), b);
+            Float lam1 = c / lam0;
+            ASSERT(std::isfinite(lam0));
+            ASSERT(std::isfinite(lam1));
+            // Do Givens rotations.
+            Field f = x.diag(0)[s] * x.diag(0)[s];
+            Field g = x.diag(0)[s] * x.diag(1)[s];
+            f -= std::abs(lam0 - g11) < std::abs(lam1 - g11) ? lam0 : lam1;
+            for (int k = s; k < t; k++) {
+                givensr(k, k + 1, f, g, x, v);
+                f = x.diag(0)[k];
+                g = x.diag(-1)[k];
+                givensl(k, k + 1, f, g, x, u);
+                if (k != t - 1) {
+                    f = x.diag(1)[k];
+                    g = x.diag(2)[k];
+                }
+            }
+            expect(itr++ < 4096, "Golub-Kahan convergence");
+        }
+        do_adjoint(u);
+        do_adjoint(v);
+        // Force diagonal and positive.
+        for (int i = 0; i < m; i++)
+            for (int j = 0; j < n; j++) {
+                if (i != j) {
+                    x(i, j) = Field(0);
+                }
+                else {
+                    if (x(i, i) != Float(0) && !v.empty())
+                        v[i] *= pre::sign(x(i, i));
+                    x(i, i) = std::abs(x(i, i));
+                }
+            }
+    }
+
+  private:
+    /// Apply Givens rotation to pair of rows, given cosine and sine.
+    static constexpr void givensl_rotation(
+            int s,
+            int t,
+            Float cos_beta,
+            Field sin_beta,
+            MatView<Field> x) noexcept {
+        for (int j = 0; j < int(x.cols()); j++) {
+            Field x0 = x(s, j);
+            Field x1 = x(t, j);
+            x(s, j) = x0 * cos_beta + x1 * sin_beta;
+            x(t, j) = x1 * cos_beta - x0 * pre::conj(sin_beta);
+        }
+    }
+
+    /// Apply Givens rotation to pair of rows.
+    static void givensl(
+            int s,
+            int t,
+            Field f,
+            Field g,
+            MatView<Field> x,
+            MatView<Field> y = {}) noexcept {
+        ASSERT(y.empty() || (y.is_square()));
+        if (s >= 0 && s < int(x.rows()) && //
+            t >= 0 && t < int(x.rows())) {
+            Float cos_beta = 1;
+            Field sin_beta = 0;
+            if (g != Float(0)) {
+                if (f == Float(0)) {
+                    cos_beta = 0;
+                    sin_beta = pre::sign(g);
+                }
+                else {
+                    Float absf = pre::abs(f);
+                    Float absg = pre::abs(g);
+                    cos_beta = absf;
+                    sin_beta = (f / absf) * pre::conj(g);
+                    Float denom = pre::hypot(absf, absg);
+                    cos_beta /= denom;
+                    sin_beta /= denom;
+                }
+            }
+            givensl_rotation(s, t, cos_beta, sin_beta, x);
+            givensl_rotation(s, t, cos_beta, sin_beta, y); // Accumulate
+        }
+    }
+
+    /// Apply Givens rotation to pair of columns.
+    static void givensr(
+            int s,
+            int t,
+            Field f,
+            Field g,
+            MatView<Field> x,
+            MatView<Field> y = {}) noexcept {
+        return givensl(s, t, f, g, x.transpose(), y.transpose());
     }
 
     /** \} */
 };
-
-template <concepts::floating_point_or_complex Field>
-inline Linalg<Field> linalg;
 
 } // namespace pre

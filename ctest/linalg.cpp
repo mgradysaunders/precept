@@ -36,7 +36,7 @@ static bool is_approx(
 
 template <typename Field, size_t M, size_t N>
 static void test_qr(pre::Pcg32& gen) {
-    auto& linalg = pre::linalg<Field>;
+    pre::Linalg<Field> linalg;
     pre::Array<Field, M, N> a = random_matrix<Field, M, N>(gen);
     pre::Array<Field, M, N> r = a;
     pre::Array<Field, M, M> q;
@@ -49,7 +49,7 @@ static void test_qr(pre::Pcg32& gen) {
 
 template <typename Field, size_t N>
 static void test_lu(pre::Pcg32& gen) {
-    auto& linalg = pre::linalg<Field>;
+    pre::Linalg<Field> linalg;
     // Do QR factorization to obtain orthogonal basis.
     pre::Array<Field, N, N> a = random_matrix<Field, N, N>(gen);
     pre::Array<Field, N, N> q;
@@ -83,7 +83,7 @@ static void test_lu(pre::Pcg32& gen) {
 
 template <typename Field, size_t N>
 static void test_chol(pre::Pcg32& gen) {
-    auto& linalg = pre::linalg<Field>;
+    pre::Linalg<Field> linalg;
     // Do QR factorization to obtain orthogonal basis.
     pre::Array<Field, N, N> a = random_matrix<Field, N, N>(gen);
     pre::Array<Field, N, N> q;

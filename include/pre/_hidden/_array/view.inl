@@ -531,15 +531,14 @@ struct ArrayView {
             requires(Rank == 2) {
         ssize_t size0 = sizes[0], size1 = sizes[1];
         ssize_t skip0 = skips[0], skip1 = skips[1];
-        if (!(p > -size1 && p < +size0))
-            return ArrayView<Value, 1>{};
+        if (!(first && p > -size0 && p < +size1))
+            return {};
         if (p < 0) {
             p = -p;
             std::swap(size0, size1);
             std::swap(skip0, skip1);
         }
-        return ArrayView<Value, 1>(
-                first + skip0 * p, std::min(size0 - p, size1), skip0 + skip1);
+        return {first + skip1 * p, std::min(size0, size1 - p), skip0 + skip1};
     }
 
     constexpr ArrayView transpose() noexcept requires(Rank == 2) {

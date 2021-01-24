@@ -231,6 +231,7 @@ inline auto det(const Array<T, N, N>& arr) noexcept {
     }
 }
 
+/// Matrix inverse.
 template <concepts::arithmetic_or_complex T, size_t N>
 inline auto inverse(const Array<T, N, N>& arr) noexcept {
     if constexpr (std::integral<T>) {
@@ -272,7 +273,23 @@ inline auto inverse(const Array<T, N, N>& arr) noexcept {
     }
 }
 
-/// Form permutation matrix.
+template <concepts::arithmetic_or_complex T, size_t M, size_t N>
+inline auto svd(const Array<T, M, N>& arr) {
+    using Float = to_floating_point_t<T>;
+    using Field = decltype(T() * Float());
+    Array<Field, M, N> x = arr;
+    struct Result {
+        Array<Float, pre::min(M, N)> s;
+        Array<Field, M, M> u;
+        Array<Field, N, N> v;
+    }
+    result;
+    Linalg<Field> linalg;
+    linalg.svd(x, result.u, result.v);
+    result.s = Array<Field, pre::min(M, N)>(*x->diag());
+    return result;
+}
+
 template <std::integral P, size_t N>
 constexpr Array<P, N, N> permutation_matrix(const Array<P, N>& p) noexcept {
     Array<P, N, N> res;

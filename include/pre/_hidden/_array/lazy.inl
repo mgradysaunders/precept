@@ -21,6 +21,50 @@ struct LazyArray {
 template <typename Func, size_t Rank>
 LazyArray(Func&&, const MultiIndex<Rank>&) -> LazyArray<Func, Rank>;
 
+/// Find minimum.
+template <typename Func>
+[[gnu::always_inline]] constexpr auto min(
+        const LazyArray<Func, 1>& arr) noexcept {
+    using Result = typename LazyArray<Func, 1>::Result;
+    if (arr.sizes[0] == 0) {
+        return Result{};
+    }
+    else {
+        Result res = arr(0);
+        for (ssize_t k = 1; k < arr.sizes[0]; k++)
+            res = std::min(res, arr(k));
+        return res;
+    }
+}
+
+/// Find maximum.
+template <typename Func>
+[[gnu::always_inline]] constexpr auto max(
+        const LazyArray<Func, 1>& arr) noexcept {
+    using Result = typename LazyArray<Func, 1>::Result;
+    if (arr.sizes[0] == 0) {
+        return Result{};
+    }
+    else {
+        Result res = arr(0);
+        for (ssize_t k = 1; k < arr.sizes[0]; k++)
+            res = std::max(res, arr(k));
+        return res;
+    }
+}
+
+/// Sum all.
+template <typename Func, size_t Rank>
+[[gnu::always_inline]] constexpr auto sum(
+        const LazyArray<Func, Rank>& arr) noexcept {
+    using Result = typename LazyArray<Func, Rank>::Result;
+    Result res = {};
+    arr.sizes.for_each([&](const auto& k) constexpr noexcept {
+        res += arr(k);
+    });
+    return res;
+}
+
 /// Vector dot.
 template <typename Func0, typename Func1>
 [[gnu::always_inline]] constexpr auto dot(
@@ -123,17 +167,6 @@ template <typename Func, size_t Rank>
                 return arr(reorder);
             },
             sizes);
-}
-
-template <typename Func, size_t Rank>
-[[gnu::always_inline]] constexpr auto sum(
-        const LazyArray<Func, Rank>& arr) noexcept {
-    using Result = typename LazyArray<Func, Rank>::Result;
-    Result res = {};
-    arr.sizes.for_each([&](const auto& k) constexpr noexcept {
-        res += arr(k);
-    });
-    return res;
 }
 
 } // namespace pre
