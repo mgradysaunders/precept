@@ -12,7 +12,7 @@ struct Linalg {
     using FloatLimits = numeric_limits<Float>;
 
   private:
-    /// A local cache object to prevent excessive heap allocations.
+    /// A cache to prevent excessive heap allocations.
     struct Cache {
         auto scoped_push() {
             return mem_stack_.scoped_push();
@@ -107,13 +107,11 @@ struct Linalg {
     /// \name Norms
     /** \{ */
 
-    /// Calculate \f$ L^1 \f$ norm.
-    Float norm1(VecView<const Field> v) noexcept {
+    Float norm1(VecView<const Field> v) {
         return pre::sum(pre::abs(*v));
     }
 
-    /// Calculate \f$ L^2 \f$ norm.
-    Float norm2(VecView<const Field> v) noexcept {
+    Float norm2(VecView<const Field> v) {
         int n = v.size();
         switch (n) {
         case 0: return 0;
@@ -138,8 +136,7 @@ struct Linalg {
         }
     }
 
-    /// Normalize with respect to \f$ L^1 \f$ norm.
-    Float normalize1(VecView<Field> v) noexcept {
+    Float normalize1(VecView<Field> v) {
         if (auto len = norm1(v); len > 0) {
             v /= len;
             return len;
@@ -149,8 +146,7 @@ struct Linalg {
         }
     }
 
-    /// Normalize with respect to \f$ L^2 \f$ norm.
-    Float normalize2(VecView<Field> v) noexcept {
+    Float normalize2(VecView<Field> v) {
         if (auto len = norm2(v); len > 0) {
             v /= len;
             return len;
@@ -168,12 +164,8 @@ struct Linalg {
 
     /// Factorize.
     ///
-    /// \param[inout] a
-    /// Matrix \f$ A \to L, U \f$.
-    ///
-    /// \param[out] p
-    /// _Optional_. Pivot permutation vector. If null, no pivoting is
-    /// performed.
+    /// \param[inout] a  Matrix to factorize.
+    /// \param[out]   p  _Optional_. Permutation vector.
     ///
     /// \returns
     /// Returns sign of pivot permutation, either `+1` or `-1`. If no
@@ -210,19 +202,10 @@ struct Linalg {
 
     /// Use factorization to solve linear system \f$ AX = B \f$.
     ///
-    /// \param[in] a
-    /// Matrix \f$ A \f$ factorized as \f$ L, U \f$ in-place.
-    ///
-    /// \param[in] b
-    /// Matrix \f$ B \f$.
-    ///
-    /// \param[out] x
-    /// Matrix of solutions \f$ X \f$.
-    ///
-    /// \param[in] p
-    /// If `a` was factorized with pivoting, then this _must_ be the
-    /// pivot permutation returned by `lu()`. If `a` was not factorized with
-    /// pivoting, then this _must_ be null.
+    /// \param[in]  a  Matrix of coefficients, factorized in-place.
+    /// \param[in]  b  Matrix of coefficients.
+    /// \param[out] x  Matrix of solutions.
+    /// \param[in]  p  _Optional_. Permutation vector.
     ///
     static void lu_solve(
             MatView<const Field> a,
@@ -259,12 +242,8 @@ struct Linalg {
 
     /// Factorize.
     ///
-    /// \param[inout] a
-    /// Matrix \f$ A \to R \f$.
-    ///
-    /// \param[out] p
-    /// _Optional_. Pivot permutation vector. If null, no pivoting is
-    /// performed.
+    /// \param[inout] a  Matrix t to factorize.
+    /// \param[out]   p  _Optional_. Permutation vector. 
     ///
     static void chol(MatView<Field> a, VecView<int> p = {}) {
         ASSERT(a.is_square());
@@ -307,19 +286,10 @@ struct Linalg {
 
     /// Use factorization to solve linear system \f$ AX = B \f$.
     ///
-    /// \param[in] a
-    /// Matrix \f$ A \f$ factorized as \f$ R \f$ in-place.
-    ///
-    /// \param[in] b
-    /// Matrix \f$ B \f$.
-    ///
-    /// \param[out] x
-    /// Matrix of solutions \f$ X \f$.
-    ///
-    /// \param[in] p
-    /// If `a` was factorized with pivoting, then this _must_ be the
-    /// pivot permutation returned by `chol()`. If `a` was not factorized with
-    /// pivoting, then this _must_ be null.
+    /// \param[in]  a  Matrix of coefficients, factorized in-place.
+    /// \param[in]  b  Matrix of coefficients.
+    /// \param[out] x  Matrix of solutions.
+    /// \param[in]  p  _Optional_. Pivot vector.
     ///
     void chol_solve(
             MatView<const Field> a,
@@ -363,7 +333,7 @@ struct Linalg {
 
     /// Factorize.
     ///
-    /// \param[inout] a  Matrix \f$ A \to R \f$.
+    /// \param[inout] a  Matrix to factorize \f$ A \to R \f$.
     /// \param[out]   q  Matrix \f$ Q \f$.
     ///
     void qr(MatView<Field> a, MatView<Field> q) {
