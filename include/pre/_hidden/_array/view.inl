@@ -237,12 +237,12 @@ struct ArrayView {
     constexpr ArrayView(ArrayView&&) noexcept = default;
 
   public:
-    constexpr size_t rank() noexcept {
+    constexpr size_t rank() const noexcept {
         return Rank;
     }
 
     /// Size (same as `sizes[0]`).
-    constexpr ssize_t size() noexcept {
+    constexpr ssize_t size() const noexcept {
         return sizes[0];
     }
 
@@ -252,12 +252,12 @@ struct ArrayView {
     /// This returns true if any size is zero, so that a many-dimensional
     /// view that ultimately contains no elements is considered empty.
     ///
-    constexpr bool empty() noexcept {
+    constexpr bool empty() const noexcept {
         return sizes.prod() == 0;
     }
 
     /// Is square? (All sizes equal?)
-    constexpr bool is_square() noexcept requires(Rank > 1) {
+    constexpr bool is_square() const noexcept requires(Rank > 1) {
         for (size_t k = 1; k < Rank; k++)
             if (sizes[k] != sizes[0])
                 return false;
@@ -555,7 +555,12 @@ struct ArrayView {
     /** \} */
 
   public:
-    /// Implict cast as const.
+    /// Implicit cast as bool. (Not empty?)
+    constexpr operator bool() const noexcept {
+        return !empty();
+    }
+
+    /// Implicit cast as const.
     constexpr operator ArrayView<const Value, Rank>() const noexcept {
         return {first, &sizes[0], &skips[0]};
     }

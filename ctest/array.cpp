@@ -190,7 +190,7 @@ TEST_CASE("ArrayView") {
                 CHECK(&tmp[k] == &arr[k][k]);
 
             // Above diagonal.
-            tmp = arr->diag(-2);
+            tmp = arr->diag(2);
             CHECK(tmp.rank() == 1);
             CHECK(tmp.size() == 12);
             for (int k = 0; k < 12; k++)

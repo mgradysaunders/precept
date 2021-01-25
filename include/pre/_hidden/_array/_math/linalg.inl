@@ -9,7 +9,7 @@ template <
 struct Linalg {
   public:
     using Float = to_floating_point_t<Field>;
-    using FloatLimits = pre::numeric_limits<Float>;
+    using FloatLimits = numeric_limits<Float>;
 
   private:
     /// A local cache object to prevent excessive heap allocations.
@@ -179,19 +179,18 @@ struct Linalg {
     /// Returns sign of pivot permutation, either `+1` or `-1`. If no
     /// pivoting, this is always `+1`.
     ///
-    static int lu(
-            MatView<Field> a, std::optional<VecView<int>> p = std::nullopt) {
+    static int lu(MatView<Field> a, VecView<int> p = {}) {
         ASSERT(a.is_square());
-        ASSERT(!p || a.size() == p->size());
+        ASSERT(!p || a.size() == p.size());
         int n = a.size(); // Dimension.
         int s = 1;        // Permutation sign.
         if (p)
-            load_iota(*p);
+            load_iota(p);
         for (int j = 0; j < n; j++) {
             if (p) { // Optionally pivot.
                 int piv = find_pivot(a(Slice(j, n), j)) + j;
                 if (piv != j) {
-                    std::swap((*p)[j], (*p)[piv]);
+                    std::swap(p[j], p[piv]);
                     a.swap_rows(j, piv);
                     s = -s;
                 }
@@ -229,19 +228,19 @@ struct Linalg {
             MatView<const Field> a,
             MatView<const Field> b,
             MatView<Field> x,
-            std::optional<VecView<const int>> p = std::nullopt) {
+            VecView<const int> p = {}) {
         ASSERT(a.is_square());
         ASSERT(b.rows() == a.rows() && //
                x.rows() == a.cols() && //
                x.cols() == b.cols());
-        ASSERT(!p || a.size() == p->size());
+        ASSERT(!p || a.size() == p.size());
         int m = b.rows();
         int n = b.cols();
         for (int j = 0; j < n; j++) {
             // Solve Ly = b.
             for (int i = 0; i < m; i++) {
                 auto k = Slice(0, i);
-                x(i, j) = b(p ? (*p)[i] : i, j) - dot(*a(i, k), *x(k, j));
+                x(i, j) = b(p ? p[i] : i, j) - dot(*a(i, k), *x(k, j));
             }
             // Solve Ux = y.
             for (int i = m - 1; i >= 0; i--) {
@@ -267,19 +266,18 @@ struct Linalg {
     /// _Optional_. Pivot permutation vector. If null, no pivoting is
     /// performed.
     ///
-    static void chol(
-            MatView<Field> a, std::optional<VecView<int>> p = std::nullopt) {
+    static void chol(MatView<Field> a, VecView<int> p = {}) {
         ASSERT(a.is_square());
-        ASSERT(!p || a.size() == p->size());
+        ASSERT(!p || a.size() == p.size());
         int n = a.size();
         if (p)
-            load_iota(*p);
+            load_iota(p);
         Float eps = FloatLimits::min_invertible();
         for (int k = 0; k < n; k++) {
             if (p) { // Optionally pivot.
                 int piv = find_pivot(a.diag()[Slice(k, n)]) + k;
                 if (piv != k) {
-                    std::swap((*p)[k], (*p)[piv]);
+                    std::swap(p[k], p[piv]);
                     a.swap_rows(k, piv);
                     a.swap_cols(k, piv);
                 }
@@ -327,12 +325,12 @@ struct Linalg {
             MatView<const Field> a,
             MatView<const Field> b,
             MatView<Field> x,
-            std::optional<VecView<const int>> p = std::nullopt) {
+            VecView<const int> p = {}) {
         ASSERT(a.is_square());
         ASSERT(b.rows() == a.rows() && //
                x.rows() == a.cols() && //
                x.cols() == b.cols());
-        ASSERT(!p || a.size() == p->size());
+        ASSERT(!p || a.size() == p.size());
         const int m = b.rows();
         const int n = b.cols();
         auto _ = cache_.scoped_push();
@@ -341,7 +339,7 @@ struct Linalg {
             // Solve R*y = b.
             for (int i = 0; i < m; i++) {
                 auto k = Slice(0, i);
-                y[i] = b(p ? (*p)[i] : i, j) - dot(pre::conj(*a(k, i)), *y[k]);
+                y[i] = b(p ? p[i] : i, j) - dot(pre::conj(*a(k, i)), *y[k]);
                 if (a(i, i) != Float(0))
                     y[i] /= pre::conj(a(i, i));
             }
@@ -353,7 +351,7 @@ struct Linalg {
                     y[i] /= a(i, i);
             }
             for (int i = 0; i < m; i++)
-                x(p ? (*p)[i] : i, j) = y[i];
+                x(p ? p[i] : i, j) = y[i];
         }
     }
 
