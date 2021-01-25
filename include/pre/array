@@ -40,9 +40,6 @@
 // for std::initializer_list
 #include <initializer_list>
 
-// for std::optional
-#include <optional>
-
 #include <pre/common>
 
 #include <pre/memory/mem_stack>
