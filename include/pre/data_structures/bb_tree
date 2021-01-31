@@ -226,7 +226,6 @@ class BbTree {
         assert(node->is_leaf && node->leaf.has_value);
         if constexpr (!concepts::trivially_destructible<T>)
             node->value_ptr()->~T();
-        pool_.deallocate(node);
         node->leaf.has_value = false;
         --size_;
         ++size_erased_;

@@ -35,7 +35,7 @@
 #define PRE_DESIGN_PATTERNS_REF_COUNTABLE
 
 #include <atomic>
-#include <pre/common>
+#include <pre/meta>
 
 namespace pre {
 

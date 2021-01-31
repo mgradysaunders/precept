@@ -201,8 +201,8 @@ class PcgXshrrEngine {
     }
 
     /// Generate result in range \f$ [0, b) \f$.
-    Result operator()(Result b) noexcept {
-        assert(b != 0);
+    constexpr Result operator()(Result b) noexcept {
+        ASSERT(b != 0);
         Result rmin = (-b) % b;
         while (1)
             if (Result r = operator()(); r >= rmin)

@@ -34,7 +34,7 @@
 #ifndef PRE_DATA_STRUCTURES_LINK_LIST
 #define PRE_DATA_STRUCTURES_LINK_LIST
 
-#include <pre/common>
+#include <pre/meta>
 
 namespace pre {
 

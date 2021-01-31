@@ -1,0 +1,216 @@
+/*-*- C++ -*-*/
+/* Copyright (c) 2018-20 M. Grady Saunders
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
+ * are met:
+ *
+ *   1. Redistributions of source code must retain the above
+ *      copyright notice, this list of conditions and the following
+ *      disclaimer.
+ *
+ *   2. Redistributions in binary form must reproduce the above
+ *      copyright notice, this list of conditions and the following
+ *      disclaimer in the documentation and/or other materials
+ *      provided with the distribution.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED
+ * TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
+ * PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR
+ * CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
+ * EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
+ * PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
+ * PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY
+ * OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+ * NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+ * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
+/*-*-*-*-*-*-*/
+#if !(__cplusplus >= 201709L)
+#error "Precept requires >= C++20"
+#endif // #if !(__cplusplus >= 201709L)
+#pragma once
+#ifndef PRE_CONCEPTS
+#define PRE_CONCEPTS
+
+// for std::array
+#include <array>
+
+// for std::find
+#include <algorithm>
+
+// for std::basic_istream, std::basic_ostream, ...
+#include <iosfwd>
+
+// for assert
+#include <cassert>
+
+// for std::max_align_t
+#include <cstddef>
+
+// for std::complex
+#include <complex>
+
+// for std::semiregular, std::regular, ...
+#include <concepts>
+
+// for std::input_or_output_iterator, std::random_access_iterator, ...
+#include <iterator>
+
+// for std::ranges::range
+#include <ranges>
+
+// for std::tuple_element
+#include <utility>
+
+// for std::is_base_of_v, std::is_arithmetic_v, ...
+#include <type_traits>
+
+#if NDEBUG
+#define ASSERT(what) void(0)
+#else
+#define ASSERT(what) ((what) ? void(0) : [] { assert(!#what); }())
+#endif // #if NDEBUG
+
+#include "_hidden/_meta/concepts.inl"
+
+#include "_hidden/_meta/explicit.inl"
+
+#include "_hidden/_meta/iterator_range.inl"
+
+#include "_hidden/_meta/array_like.inl"
+
+#include "_hidden/_meta/scoped.inl"
+
+namespace pre {
+
+using ssize_t = std::make_signed_t<size_t>;
+
+template <typename>
+struct to_floating_point;
+
+template <typename... T>
+using to_floating_point_t =
+        typename to_floating_point<std::common_type_t<T...>>::type;
+
+template <std::integral T>
+struct to_floating_point<T> {
+    using type = double;
+};
+
+template <std::floating_point T>
+struct to_floating_point<T> {
+    using type = T;
+};
+
+template <std::floating_point T>
+struct to_floating_point<std::complex<T>> {
+    using type = T;
+};
+
+template <typename T>
+struct to_floating_point<T&> {
+    using type = to_floating_point_t<T>; // Strip reference
+};
+
+/// A type list.
+template <typename... T>
+struct type_list {
+    template <size_t N>
+    using type = typename std::tuple_element<N, std::tuple<T...>>::type;
+};
+
+/// A type list concatenator.
+template <typename T, typename U>
+struct type_list_cat {
+    using type = type_list<T, U>;
+};
+
+template <typename T, typename... U>
+struct type_list_cat<T, type_list<U...>> {
+    using type = type_list<T, U...>;
+};
+
+template <typename... T, typename U>
+struct type_list_cat<type_list<T...>, U> {
+    using type = type_list<T..., U>;
+};
+
+template <typename... T, typename... U>
+struct type_list_cat<type_list<T...>, type_list<U...>> {
+    using type = type_list<T..., U...>;
+};
+
+/// An indexed type.
+template <size_t N, typename T>
+struct indexed_type {
+    static constexpr size_t index = N;
+    using type = T;
+};
+
+/// An indexed type list.
+template <size_t N, typename... T>
+struct indexed_type_list;
+
+template <typename... T>
+using indexed_type_list_t = typename indexed_type_list<0, T...>::type;
+
+template <size_t N, typename T, typename... U>
+struct indexed_type_list<N, T, U...> {
+    using type = typename type_list_cat<
+            indexed_type<N, T>,
+            typename indexed_type_list<N + 1, U...>::type>::type;
+};
+
+template <size_t N, typename T>
+struct indexed_type_list<N, T> {
+    using type = type_list<indexed_type<N, T>>;
+};
+
+template <>
+struct indexed_type_list<0> {
+    using type = type_list<>;
+};
+
+/// A callable indexed type list.
+template <typename T>
+struct callable_indexed_type_list;
+
+template <typename T>
+using callable_indexed_type_list_t =
+        typename callable_indexed_type_list<T>::type;
+
+template <typename T, typename... Args>
+struct callable_indexed_type_list<T(Args...)> {
+    using type = indexed_type_list_t<Args...>;
+};
+
+template <typename T, typename... Args>
+struct callable_indexed_type_list<T (*)(Args...)> {
+    using type = indexed_type_list_t<Args...>;
+};
+
+template <typename T, typename Class, typename... Args>
+struct callable_indexed_type_list<T (Class::*)(Args...)> {
+    using type = indexed_type_list_t<Args...>;
+};
+
+template <typename T, typename Class, typename... Args>
+struct callable_indexed_type_list<T (Class::*)(Args...) const> {
+    using type = indexed_type_list_t<Args...>;
+};
+
+template <concepts::functor T>
+struct callable_indexed_type_list<T>
+    : callable_indexed_type_list<decltype(&T::operator())> {};
+
+template <typename T>
+struct callable_indexed_type_list<T&> : callable_indexed_type_list<T> {};
+
+template <typename T>
+struct callable_indexed_type_list<T&&> : callable_indexed_type_list<T> {};
+
+} // namespace pre
+
+#endif // #ifndef PRE_CONCEPTS

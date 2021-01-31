@@ -70,7 +70,7 @@ extern "C" {
 #include <string_view>
 
 // for concepts::ostream, type_list, ...
-#include <pre/common>
+#include <pre/meta>
 
 namespace pre {
 

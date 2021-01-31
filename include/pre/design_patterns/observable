@@ -44,7 +44,7 @@
 #include <vector>
 
 // for pre::IteratorRange
-#include <pre/common>
+#include <pre/meta>
 
 // for pre::IdString
 #include <pre/design_patterns/id_string>

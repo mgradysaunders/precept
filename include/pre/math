@@ -49,7 +49,7 @@
 // for std::numeric_limits
 #include <limits>
 
-#include <pre/common>
+#include <pre/meta>
 
 // for pre::numeric_limits
 #include "_hidden/_math/numeric_limits.inl"

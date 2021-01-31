@@ -37,7 +37,7 @@
 // for std::runtime_error, std::length_error, ...
 #include <stdexcept>
 
-#include <pre/common>
+#include <pre/meta>
 
 namespace pre {
 

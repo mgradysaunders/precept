@@ -40,7 +40,7 @@
 // for std::initializer_list
 #include <initializer_list>
 
-#include <pre/common>
+#include <pre/meta>
 
 #include <pre/memory/mem_stack>
 
@@ -628,11 +628,17 @@ constexpr auto dot(
     return dot(lhs.template reshape<1, N>(), rhs).template reshape<P>();
 }
 
+template <typename T, typename U, typename... Args>
+constexpr auto dot(const T& lhs, const U& rhs, const Args&... args) {
+    return dot(dot(lhs, rhs), args...);
+}
+
 template <typename T, typename U, size_t M, size_t N>
 constexpr Array<T, M, N> outer(
         const Array<T, M>& lhs, const Array<U, N>& rhs) noexcept {
     return dot(lhs.template reshape<M, 1>(), rhs.template reshape<1, N>());
 }
+
 
 template <typename T, size_t M, size_t N>
 constexpr T trace(const Array<T, M, N>& arr) noexcept {
