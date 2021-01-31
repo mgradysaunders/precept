@@ -68,7 +68,7 @@ TEST_CASE_TEMPLATE("KdTree2", Float, float, double) {
         });
 
         // Erase.
-        std::size_t num_erased = tree.erase_nearby(center, radius);
+        size_t num_erased = tree.erase_nearby(center, radius);
 
         // Check that nearest to each is itself.
         for (auto pos = tree.begin(); pos != tree.end(); ++pos)

@@ -94,7 +94,7 @@ static void test_chol(pre::Pcg32& gen) {
     a = {};
     for (size_t k = 0; k < N; k++)
         a(k, k) = Field(gen(0.1, 2.0));
-    a = pre::dot(q, pre::dot(a, pre::adjoint(q)));
+    a = pre::dot(q, a, pre::adjoint(q));
     for (size_t i = 0; i < N; i++) {
         a(i, i) = pre::real(a(i, i));
         for (size_t j = i + 1; j < N; j++)
@@ -111,7 +111,7 @@ static void test_chol(pre::Pcg32& gen) {
     CHECK(is_approx(pre::dot(pre::adjoint(a0), a0), a, 0.01));
     CHECK(is_approx(
             pre::dot(pre::adjoint(a1), a1),
-            pre::dot(p1, pre::dot(a, pre::transpose(p1))), 0.01));
+            pre::dot(p1, a, pre::transpose(p1)), 0.01));
 
     // Solve linear system.
     pre::Array<Field, N, 2> b0 = random_matrix<Field, N, 2>(gen), x0;
@@ -126,32 +126,39 @@ TEST_CASE_TEMPLATE("Linalg", Float, float, double) {
     pre::Pcg32 gen(getContextOptions()->rand_seed);
     SUBCASE("QR") {
         SUBCASE("With real numbers") {
+            test_qr<Float, 2, 2>(gen);
             test_qr<Float, 8, 3>(gen);
             test_qr<Float, 7, 8>(gen);
+            test_qr<Float, 16, 22>(gen);
         }
         SUBCASE("With complex numbers") {
             test_qr<std::complex<Float>, 8, 3>(gen);
             test_qr<std::complex<Float>, 7, 8>(gen);
+            test_qr<std::complex<Float>, 23, 11>(gen);
         }
     }
     SUBCASE("LU") {
         SUBCASE("With real numbers") {
             test_lu<Float, 2>(gen);
             test_lu<Float, 9>(gen);
+            test_lu<Float, 20>(gen);
         }
         SUBCASE("With complex numbers") {
             test_lu<std::complex<Float>, 2>(gen);
             test_lu<std::complex<Float>, 9>(gen);
+            test_lu<std::complex<Float>, 20>(gen);
         }
     }
     SUBCASE("Cholesky") {
         SUBCASE("With real numbers") {
             test_chol<Float, 4>(gen);
             test_chol<Float, 7>(gen);
+            test_chol<Float, 20>(gen);
         }
         SUBCASE("With complex numbers") {
             test_chol<std::complex<Float>, 4>(gen);
             test_chol<std::complex<Float>, 7>(gen);
+            test_chol<std::complex<Float>, 20>(gen);
         }
     }
 }

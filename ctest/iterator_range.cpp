@@ -2,7 +2,7 @@
 #include <list>
 #include <vector>
 #include <pre/random>
-#include <pre/common>
+#include <pre/meta>
 
 TEST_CASE("IteratorRange") {
     pre::Pcg32 gen;
