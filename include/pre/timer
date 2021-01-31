@@ -50,11 +50,9 @@ namespace pre {
 template <typename Clock>
 class Timer {
   public:
-    /// Constructor.
     Timer() : start_(Clock::now()) {
     }
 
-    /// Read.
     template <typename Rep, typename Ratio>
     Rep read() const {
         // clang-format off

@@ -1,4 +1,4 @@
-#include "doctest.h"
+#include "../doctest.h"
 #include <pre/random>
 #include <pre/array>
 #include <pre/math>

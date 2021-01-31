@@ -34,10 +34,7 @@
 #ifndef PRE_QUATERNION
 #define PRE_QUATERNION
 
-// for pre::Array
 #include <pre/array>
-
-// for pre::Dual
 #include <pre/dual>
 
 namespace pre {

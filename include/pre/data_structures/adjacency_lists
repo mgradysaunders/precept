@@ -43,11 +43,8 @@
 // for std::monostate
 #include <variant>
 
-// for pre::IteratorRange
+// for pre::IteratorRange, pre::LinkList
 #include <pre/meta>
-
-// for pre::LinkList
-#include <pre/data_structures/link_list>
 
 // for pre::MemPool
 #include <pre/memory/mem_pool>
@@ -84,19 +81,6 @@ class AdjacencyLists {
         Link* next = nullptr;
         Link* prev = nullptr;
         Key value;
-
-        /// \name Link API
-        /** \{ */
-
-        constexpr auto* value_ptr() noexcept {
-            return &value;
-        }
-
-        constexpr auto* value_ptr() const noexcept {
-            return &value;
-        }
-
-        /** \} */
     };
 
     typedef LinkList<Link*> List;

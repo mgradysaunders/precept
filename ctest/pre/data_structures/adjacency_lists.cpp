@@ -1,4 +1,4 @@
-#include "doctest.h"
+#include "../../doctest.h"
 #include <pre/memory/tracking_allocator>
 #include <pre/data_structures/adjacency_lists>
 

@@ -36,12 +36,13 @@
 
 #include <variant>
 #include <pre/array>
-#include <pre/data_structures/link_list>
 #include <pre/data_structures/static_stack>
 #include <pre/memory/mem_pool>
 #include <pre/shapes/bound_box>
 
 namespace pre {
+
+// TODO Redo
 
 /// A kd-tree.
 ///
@@ -89,22 +90,9 @@ class KdTree {
         value_type value; ///< Value.
         bool has_value;   ///< Has value?
 
-        /// \name Link API
-        /** \{ */
-
-        constexpr auto* value_ptr() noexcept {
-            return &value;
-        }
-
-        constexpr auto* value_ptr() const noexcept {
-            return &value;
-        }
-
         constexpr bool should_ignore() const noexcept {
             return !has_value;
         }
-
-        /** \} */
     };
 
     typedef LinkIterator<Node*> iterator;

@@ -180,10 +180,7 @@ namespace pre {
 
 /// Terminal size.
 struct TerminalSize {
-    /// Rows.
     int rows = 0;
-
-    /// Columns.
     int cols = 0;
 
     /// Get current terminal size.
@@ -206,14 +203,11 @@ struct TerminalSize {
 /// A terminal progress bar.
 struct TerminalProgressBar {
   public:
-    /// Default constructor.
     TerminalProgressBar() noexcept = default;
 
-    /// Constructor.
     TerminalProgressBar(double amt) noexcept : amount(amt) {
     }
 
-    /// Amount complete, between 0 and 1.
     double amount = 0.0;
 
     /// Write into `std::basic_ostream`.
@@ -277,16 +271,15 @@ struct TerminalProgressBar {
 ///
 /// This class provides an interface to process command-line arguments
 /// in a convenient and self-documenting way. The implementation uses the
-/// type-signatures of specified option variables to verify proper usage and
-/// issue descriptive error messages. A reference to a standard string
-/// is returned whenever an option is specified, to allow client code to
-/// immediately attach a help message. Then, by passing the built-in
-/// default option `-h/--help`, the implementation automatically formats and
-/// displays all help messages.
+/// type-signatures of specified option variables to verify usage and issue 
+/// descriptive error messages. A reference to a string is returned whenever 
+/// an option is specified, to allow client code to attach a help message. 
+/// Then, by passing the built-in default option `-h/--help`, the 
+/// implementation automatically formats and displays all help 
+/// messages.
 ///
 class OptionParser {
   public:
-    /// Constructor.
     OptionParser(const char* prog_usage) : prog_usage_(prog_usage) {
         groups_.emplace_back();
         on_option("-h/--help", [&] { // Default help option.
@@ -295,11 +288,8 @@ class OptionParser {
         }) = "Display this help and exit.";
     }
 
-    /// Set in-group for subsequent calls.
-    ///
-    /// \param[in] name
-    /// Name.
-    ///
+  public:
+    /// Set group.
     std::string& in_group(const char* name) {
         for (auto itr = groups_.begin(); itr != groups_.end(); ++itr) {
             if ((itr->name.empty() && !name) || itr->name == name) {
@@ -311,41 +301,18 @@ class OptionParser {
         groups_.back().name = name;
         return groups_.back().help;
     }
-    /// Set on-begin callback.
-    ///
-    /// \param[in] callback
-    /// Callback.
-    ///
+
+    /// Set begin callback.
     void on_begin(const std::function<void()>& callback) {
         groups_.back().on_begin = callback;
     }
 
-    /// Set on-end callback.
-    ///
-    /// \param[in] callback
-    /// Callback.
-    ///
+    /// Set end callback.
     void on_end(const std::function<void()>& callback) {
         groups_.back().on_end = callback;
     }
 
-    /// Set on-positional callback.
-    ///
-    /// \param[in] callback
-    /// Callback.
-    ///
-    void on_positional(const std::function<void(std::string_view)>& callback) {
-        groups_.back().on_positional = callback;
-    }
-
-    /// Add on-option callback.
-    ///
-    /// \param[in] name
-    /// Name.
-    ///
-    /// \param[in] call
-    /// Call.
-    ///
+    /// Add option callback.
     template <typename Call>
     std::string& on_option(const char* name, Call&& call) {
         groups_.back().options.emplace_back();
@@ -355,17 +322,7 @@ class OptionParser {
         return option.help;
     }
 
-    /// Add on-option callback, automatic interpolation variant.
-    ///
-    /// \param[in] name
-    /// Name.
-    ///
-    /// \param[out] arg
-    /// First argument.
-    ///
-    /// \param[out] args
-    /// Other arguments.
-    ///
+    /// Add option, automatic interpolation variant.
     template <typename Arg, typename... Args>
     std::string& on_option(const char* name, Arg* arg, Args*... args) {
         return on_option(name, [=](Arg arg_, Args... args_) {
@@ -373,26 +330,21 @@ class OptionParser {
         });
     }
 
-    /// Add on-option callback, flag variant.
-    ///
-    /// \param[in] name
-    /// Name.
-    ///
-    /// \param[out] flag
-    /// Flag value.
-    ///
+    /// Add option, flag variant.
     std::string& on_option(const char* name, bool* flag) {
         return on_option(name, [=]() { *flag = true; });
+    }
+
+    /// Set positional callback.
+    void on_positional(const std::function<void(std::string_view)>& callback) {
+        groups_.back().on_positional = callback;
     }
 
   public:
     /// Parse.
     ///
-    /// \param[in] argc
-    /// Argument count.
-    ///
-    /// \param[in] argv
-    /// Argument pointer.
+    /// \param[in] argc  Argument count.
+    /// \param[in] argv  Argument pointer.
     ///
     /// \throw std::runtime_error
     /// If unknown option or improper use of option.
@@ -511,7 +463,7 @@ class OptionParser {
     ///
     /// An option name string is `/^--?[a-zA-Z](?:-?[a-zA-Z0-9]+)*$/`.
     ///
-    static bool is_option_name_(const char* str) {
+    static bool is_option_name_(const char* str) noexcept {
         std::locale loc;
         // --?
         if (!str || *str != '-')
@@ -536,7 +488,6 @@ class OptionParser {
         return *str == '\0';
     }
 
-    // Argument signature.
     template <typename Arg>
     static consteval const char* argv_signature_() {
         if constexpr (std::unsigned_integral<Arg>)
@@ -549,10 +500,8 @@ class OptionParser {
             return "string";
     }
 
-    // Argument cast.
     template <typename Arg>
     static Arg argv_cast_(char* argv) {
-        // Sanity check.
         static_assert(
                 concepts::arithmetic<Arg> ||      //
                 std::same_as<Arg, char*> ||       //
@@ -598,7 +547,6 @@ class OptionParser {
     /// An option.
     class Option {
       public:
-        /// Name(s).
         std::string_view name[2] = {};
 
         /// Nice name with text styling.
@@ -615,20 +563,12 @@ class OptionParser {
                         BashCode::ResetBoldDim);
         }
 
-        /// Argument count.
         int argc = 0;
-
-        /// Argument signature string.
         std::string argv_signature;
-
-        /// Callback.
         std::function<void(char**)> on_option;
-
-        /// Help string.
         std::string help;
 
       public:
-        // Init name.
         void init_name(const char* name_) {
             name[0] = name_;
             auto pos = name[0].find('/');
@@ -638,7 +578,6 @@ class OptionParser {
             }
         }
 
-        // Init callback.
         template <typename Call>
         void init_callback(Call&& call) {
             // Delegate with callable indexed type list.
@@ -647,7 +586,6 @@ class OptionParser {
                     callable_indexed_type_list_t<Call>{});
         }
 
-        // Init callback.
         template <typename Call, typename... Args>
         void init_callback(Call&& call, type_list<Args...>) {
             // Init argument count.
@@ -686,7 +624,6 @@ class OptionParser {
     /// An option group.
     class OptionGroup {
       public:
-        /// Name.
         std::string_view name = {};
 
         /// Nice name with text styling.
@@ -699,19 +636,10 @@ class OptionParser {
                         BashCode::ResetUnderline);
         }
 
-        /// Options.
         std::list<Option> options;
-
-        /// On-begin callback.
         std::function<void()> on_begin;
-
-        /// On-end callback.
         std::function<void()> on_end;
-
-        /// On-positional callback.
         std::function<void(std::string_view)> on_positional;
-
-        /// Help string.
         std::string help;
     };
 
@@ -750,14 +678,9 @@ class OptionParser {
     }
 
   private:
-    /// Program name (from `argv[0]`).
-    const char* prog_name_ = nullptr;
-
-    /// Program usage line.
-    const char* prog_usage_ = nullptr;
-
-    /// Option groups.
-    std::list<OptionGroup> groups_;
+    const char* prog_name_ = nullptr;  ///< Program name (from `argv[0]`).
+    const char* prog_usage_ = nullptr; ///< Program usage line.
+    std::list<OptionGroup> groups_;    ///< Option groups.
 };
 
 } // namespace pre

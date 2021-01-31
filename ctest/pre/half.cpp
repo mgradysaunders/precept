@@ -1,12 +1,12 @@
-#include "doctest.h"
+#include "../doctest.h"
 #include <pre/random>
 #include <pre/half>
 
 TEST_CASE("Half") {
     SUBCASE("Accuracy") {
-        pre::Pcg32 pcg(getContextOptions()->rand_seed);
+        pre::Pcg32 gen(getContextOptions()->rand_seed);
         for (int check = 0; check < 1024; check++) {
-            float u0 = pre::generate_canonical<float>(pcg);
+            float u0 = pre::generate_canonical<float>(gen);
             float x0 = (2 * u0 - 1) * 65504.0f;
             float xh = pre::Half(x0);
             CHECK(pre::fabs(xh - x0) / pre::fabs(x0) <= 0x1p-11f);

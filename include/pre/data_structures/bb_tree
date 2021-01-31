@@ -34,9 +34,11 @@
 #ifndef PRE_DATA_STRUCTURES_BB_TREE
 #define PRE_DATA_STRUCTURES_BB_TREE
 
-#include <pre/data_structures/link_list>
+#include <pre/meta>
 #include <pre/memory/mem_pool>
 #include <pre/shapes/bound_box>
+
+// TODO Redo
 
 namespace pre {
 
