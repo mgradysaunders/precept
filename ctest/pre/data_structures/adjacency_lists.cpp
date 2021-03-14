@@ -1,5 +1,5 @@
 #include "../../doctest.h"
-#include <pre/memory/tracking_allocator>
+#include <pre/data_structures/tracking_allocator>
 #include <pre/data_structures/adjacency_lists>
 
 TEST_CASE("AdjacencyLists") {
