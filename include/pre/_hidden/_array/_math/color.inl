@@ -456,4 +456,6 @@ inline Array<T, 4> mix_rgb(
     return v;
 }
 
+// TODO color literals
+
 } // namespace pre

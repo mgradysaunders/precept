@@ -31,8 +31,8 @@
 #error "Precept requires >= C++20"
 #endif // #if !(__cplusplus >= 201709L)
 #pragma once
-#ifndef PRE_MEMORY_MEM_STACK
-#define PRE_MEMORY_MEM_STACK
+#ifndef PRE_DATA_STRUCTURES_MEMORY_STACK
+#define PRE_DATA_STRUCTURES_MEMORY_STACK
 
 #include <memory>
 #include <vector>
@@ -47,13 +47,13 @@ namespace pre {
 /// push and pop operations.
 ///
 template <typename Alloc = std::allocator<std::byte>>
-struct MemStack {
+struct MemoryStack {
   public:
     typedef Alloc allocator_type;
 
     typedef std::allocator_traits<Alloc> allocator_traits;
 
-    MemStack(size_t block_size = 0, const Alloc& alloc = Alloc())
+    MemoryStack(size_t block_size = 0, const Alloc& alloc = Alloc())
         : block_size_(block_size), alloc_(alloc), pushes_(alloc) {
         if (block_size_ == 0)
             block_size_ = 65536;
@@ -61,24 +61,24 @@ struct MemStack {
         pushes_.reserve(8);
     }
 
-    MemStack(const MemStack&) = delete;
+    MemoryStack(const MemoryStack&) = delete;
 
-    MemStack(MemStack&& other) noexcept
+    MemoryStack(MemoryStack&& other) noexcept
         : block_size_(other.block_size_),
           block_tail_(std::exchange(other.block_tail_, nullptr)),
           alloc_(std::move(other.alloc_)), pushes_(std::move(other.pushes_)) {
     }
 
-    ~MemStack() {
+    ~MemoryStack() {
         clear();
         block_deallocate_(block_tail_);
         block_tail_ = nullptr;
     }
 
-    MemStack& operator=(const MemStack&) = delete;
+    MemoryStack& operator=(const MemoryStack&) = delete;
 
-    MemStack& operator=(MemStack&& other) noexcept {
-        this->~MemStack();
+    MemoryStack& operator=(MemoryStack&& other) noexcept {
+        this->~MemoryStack();
         block_size_ = other.block_size_;
         block_tail_ = std::exchange(other.block_tail_, nullptr);
         alloc_ = std::move(other.alloc_);
@@ -203,4 +203,4 @@ struct MemStack {
 
 } // namespace pre
 
-#endif // #ifndef PRE_MEMORY_MEM_STACK
+#endif // #ifndef PRE_DATA_STRUCTURES_MEMORY_STACK

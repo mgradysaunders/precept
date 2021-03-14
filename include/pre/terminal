@@ -31,8 +31,8 @@
 #error "Precept requires >= C++20"
 #endif // #if !(__cplusplus >= 201709L)
 #pragma once
-#ifndef PRE_MISC_TERMINAL
-#define PRE_MISC_TERMINAL
+#ifndef PRE_TERMINAL
+#define PRE_TERMINAL
 
 #if __linux__
 extern "C" {
@@ -685,4 +685,4 @@ class OptionParser {
 
 } // namespace pre
 
-#endif // #ifndef PRE_MISC_TERMINAL
+#endif // #ifndef PRE_TERMINAL

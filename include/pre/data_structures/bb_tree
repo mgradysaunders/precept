@@ -35,13 +35,14 @@
 #define PRE_DATA_STRUCTURES_BB_TREE
 
 #include <pre/meta>
-#include <pre/memory/mem_pool>
+#include <pre/data_structures/tree_utils>
 #include <pre/shapes/bound_box>
 
 // TODO Redo
 
 namespace pre {
 
+#if 0
 template <
         std::floating_point Float,
         size_t N,
@@ -395,6 +396,7 @@ class BbTree {
         return node;
     }
 };
+#endif
 
 } // namespace pre
 

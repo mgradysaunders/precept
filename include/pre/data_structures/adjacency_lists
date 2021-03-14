@@ -46,8 +46,8 @@
 // for pre::IteratorRange, pre::LinkList
 #include <pre/meta>
 
-// for pre::MemPool
-#include <pre/memory/mem_pool>
+// for pre::MemoryPool
+#include <pre/data_structures/memory_pool>
 
 namespace pre {
 
@@ -119,15 +119,14 @@ class AdjacencyLists {
     /** \} */
 
   public:
-    AdjacencyLists() : link_pool_(sizeof(Link), 0) {
-    }
+    AdjacencyLists() = default;
 
     explicit AdjacencyLists(const Alloc& alloc)
-        : link_pool_(sizeof(Link), 0, alloc), lists_(0, alloc) {
+        : link_pool_(0, alloc), lists_(0, alloc) {
     }
 
     AdjacencyLists(const AdjacencyLists& other, const Alloc& alloc = {})
-        : link_pool_(sizeof(Link), 0, alloc), lists_(0, alloc) {
+        : link_pool_(0, alloc), lists_(0, alloc) {
         reserve(other.size());
         for (const auto& val : other)
             for (const auto& key : val.second)
@@ -306,7 +305,7 @@ class AdjacencyLists {
     /** \} */
 
   private:
-    MemPool<Alloc> link_pool_;
+    ObjectMemoryPool<Link, Alloc> link_pool_;
 
     ListContainer lists_;
 

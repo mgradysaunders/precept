@@ -42,7 +42,7 @@
 
 #include <pre/meta>
 
-#include <pre/memory/mem_stack>
+#include <pre/data_structures/memory_stack>
 
 namespace pre {
 

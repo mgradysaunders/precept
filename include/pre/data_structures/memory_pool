@@ -1,5 +1,5 @@
 /*-*- C++ -*-*/
-/* Copyright (c) 2018-20 M. Grady Saunders
+/* Copyright (c) 2018-21 M. Grady Saunders
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -31,8 +31,8 @@
 #error "Precept requires >= C++20"
 #endif // #if !(__cplusplus >= 201709L)
 #pragma once
-#ifndef PRE_MEMORY_MEM_POOL
-#define PRE_MEMORY_MEM_POOL
+#ifndef PRE_DATA_STRUCTURES_MEMORY_POOL
+#define PRE_DATA_STRUCTURES_MEMORY_POOL
 
 // for assert
 #include <cassert>
@@ -55,7 +55,7 @@ namespace pre {
 
 /// A memory pool.
 template <typename Alloc = std::allocator<std::byte>>
-class MemPool {
+class MemoryPool {
   public:
     typedef Alloc allocator_type;
 
@@ -73,7 +73,8 @@ class MemPool {
     /// \param[in] alloc
     /// Allocator.
     ///
-    MemPool(size_t elem_size,
+    MemoryPool(
+            size_t elem_size,
             size_t pool_size = 0,
             const Alloc& alloc = Alloc()) noexcept
         : elem_size_(elem_size), pool_size_(pool_size), alloc_(alloc) {
@@ -86,16 +87,16 @@ class MemPool {
         }
     }
 
-    MemPool(const MemPool&) = delete;
+    MemoryPool(const MemoryPool&) = delete;
 
-    MemPool(MemPool&& other) noexcept
+    MemoryPool(MemoryPool&& other) noexcept
         : elem_size_(std::exchange(other.elem_size_, 0)),
           pool_size_(std::exchange(other.pool_size_, 0)),
           first_(std::exchange(other.first_, nullptr)),
           alloc_(std::move(other.alloc_)) {
     }
 
-    MemPool(MemPool&& other, const Alloc& alloc)
+    MemoryPool(MemoryPool&& other, const Alloc& alloc)
         : elem_size_(std::exchange(other.elem_size_, 0)),
           pool_size_(std::exchange(other.pool_size_, 0)),
           first_(std::exchange(other.first_, nullptr)), alloc_(alloc) {
@@ -104,13 +105,13 @@ class MemPool {
             throw std::invalid_argument(__func__);
     }
 
-    ~MemPool() {
+    ~MemoryPool() {
         reset();
     }
 
-    MemPool& operator=(const MemPool&) = delete;
+    MemoryPool& operator=(const MemoryPool&) = delete;
 
-    MemPool& operator=(MemPool&& other) noexcept {
+    MemoryPool& operator=(MemoryPool&& other) noexcept {
         elem_size_ = std::exchange(other.elem_size_, 0);
         pool_size_ = std::exchange(other.pool_size_, 0);
         first_ = std::exchange(other.first_, nullptr);
@@ -173,12 +174,12 @@ class MemPool {
         for (Pool* pool = first_; pool;) {
             Pool* next = pool->next;
             pool_deallocate_(pool);
-            pool = next; 
+            pool = next;
         }
         first_ = nullptr;
     }
 
-    void swap(MemPool& other) noexcept {
+    void swap(MemoryPool& other) noexcept {
         if (this != &other) {
             std::swap(elem_size_, other.elem_size_);
             std::swap(pool_size_, other.pool_size_);
@@ -249,6 +250,42 @@ class MemPool {
     }
 };
 
+/// A memory pool for a given object type.
+template <typename Obj, typename Alloc = std::allocator<std::byte>>
+class ObjectMemoryPool final : public MemoryPool<Alloc> {
+  public:
+    using Base = MemoryPool<Alloc>;
+
+    ObjectMemoryPool(size_t pool_size, const Alloc& alloc = Alloc())
+        : Base(sizeof(Obj), pool_size, alloc) {
+    }
+
+    ObjectMemoryPool(ObjectMemoryPool&& other) noexcept : Base(other) {
+    }
+
+    ObjectMemoryPool(ObjectMemoryPool&& other, const Alloc& alloc)
+        : Base(other, alloc) {
+    }
+
+    ~ObjectMemoryPool() = default;
+
+    Obj* allocate() {
+        return static_cast<Obj*>(static_cast<Base&>(*this).allocate());
+    }
+
+    template <typename... Args>
+    Obj* create(Args&&... args) {
+        return new (allocate()) Obj(std::forward<Args>(args)...);
+    }
+
+    void destroy(Obj* object) {
+        if (object) {
+            object->~Obj();
+            static_cast<Base&>(*this).deallocate(object);
+        }
+    }
+};
+
 } // namespace pre
 
-#endif // #ifndef PRE_MEMORY_MEM_POOL
+#endif // #ifndef PRE_DATA_STRUCTURES_MEMORY_POOL

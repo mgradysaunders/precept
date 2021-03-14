@@ -34,13 +34,8 @@
 #ifndef PRE_RANDOM
 #define PRE_RANDOM
 
-// for std::uint8_t, std::uint16_t, ...
 #include <cstdint>
-
-// for std::memcpy
 #include <cstring>
-
-// for std::log2, pre::rotr, ...
 #include <pre/math>
 
 namespace pre {
@@ -276,24 +271,20 @@ class PcgXshrrEngine {
     }
 };
 
-/// 8-bit PCG XSH-RR generator.
 using Pcg8 = PcgXshrrEngine<std::uint8_t, std::uint16_t, 12829U, 47989U>;
 
-/// 16-bit PCG XSH-RR generator.
 using Pcg16 = PcgXshrrEngine<
         std::uint16_t,
         std::uint32_t,
         747796405UL,
         2891336453UL>;
 
-/// 32-bit PCG XSH-RR generator.
 using Pcg32 = PcgXshrrEngine<
         std::uint32_t,
         std::uint64_t,
         6364136223846793005ULL,
         1442695040888963407ULL>;
 
-/// 64-bit PCG XSH-RR generator.
 using Pcg64 = PcgXshrrEngine<
         std::uint64_t,
         std::uint64_t,

@@ -33,7 +33,7 @@ struct Linalg {
         }
 
       private:
-        MemStack<Alloc> mem_stack_;
+        MemoryStack<Alloc> mem_stack_;
     };
 
     Cache cache_;

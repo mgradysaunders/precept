@@ -34,10 +34,7 @@
 #ifndef PRE_NOISE
 #define PRE_NOISE
 
-// for pre::Array
 #include <pre/array>
-
-// for pre::Pcg32
 #include <pre/random>
 
 namespace pre {

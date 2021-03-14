@@ -1,5 +1,5 @@
 /*-*- C++ -*-*/
-/* Copyright (c) 2018-20 M. Grady Saunders
+/* Copyright (c) 2018-21 M. Grady Saunders
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -31,8 +31,8 @@
 #error "Precept requires >= C++20"
 #endif // #if !(__cplusplus >= 201709L)
 #pragma once
-#ifndef PRE_MEMORY_MEM_ARENA
-#define PRE_MEMORY_MEM_ARENA
+#ifndef PRE_DATA_STRUCTURES_MEMORY_ARENA
+#define PRE_DATA_STRUCTURES_MEMORY_ARENA
 
 // for size_t, std::ptrdiff_t
 #include <cstddef>
@@ -59,13 +59,13 @@ namespace pre {
 
 /// A memory arena.
 template <typename Alloc = std::allocator<std::byte>>
-class MemArena {
+class MemoryArena {
   public:
     typedef Alloc allocator_type;
 
     typedef std::allocator_traits<Alloc> allocator_traits;
 
-    MemArena(size_t block_size = 0, const Alloc& alloc = Alloc()) noexcept
+    MemoryArena(size_t block_size = 0, const Alloc& alloc = Alloc()) noexcept
         : block_size_(block_size), free_blocks_(alloc), full_blocks_(alloc),
           alloc_(alloc) {
         // Round up to 256 byte interval.
@@ -81,9 +81,9 @@ class MemArena {
         full_blocks_.reserve(4);
     }
 
-    MemArena(const MemArena&) = delete;
+    MemoryArena(const MemoryArena&) = delete;
 
-    MemArena(MemArena&& other) noexcept
+    MemoryArena(MemoryArena&& other) noexcept
         : block_size_(std::exchange(other.block_size_, 0)),
           block_(std::exchange(other.block_, Block{})),
           free_blocks_(std::move(other.free_blocks_)),
@@ -91,7 +91,7 @@ class MemArena {
           alloc_(std::move(other.alloc_)) {
     }
 
-    MemArena(MemArena&& other, const Alloc& alloc)
+    MemoryArena(MemoryArena&& other, const Alloc& alloc)
         : block_size_(std::exchange(other.block_size_, 0)),
           block_(std::exchange(other.block_, Block{})),
           free_blocks_(std::move(other.free_blocks_)),
@@ -101,7 +101,7 @@ class MemArena {
             throw std::invalid_argument(__func__);
     }
 
-    ~MemArena() {
+    ~MemoryArena() {
         alloc_.deallocate(block_.begin, block_.size);
         for (Block& block : free_blocks_)
             alloc_.deallocate(block.begin, block.size);
@@ -109,9 +109,9 @@ class MemArena {
             alloc_.deallocate(block.begin, block.size);
     }
 
-    MemArena& operator=(const MemArena&) = delete;
+    MemoryArena& operator=(const MemoryArena&) = delete;
 
-    MemArena& operator=(MemArena&& other) noexcept {
+    MemoryArena& operator=(MemoryArena&& other) noexcept {
         block_size_ = std::exchange(other.block_size_, 0);
         block_ = std::exchange(other.block_, Block{});
         free_blocks_ = std::move(other.free_blocks_);
@@ -180,7 +180,7 @@ class MemArena {
         full_blocks_.clear();
     }
 
-    void swap(MemArena& other) {
+    void swap(MemoryArena& other) {
         if (this != &other) {
             std::swap(block_size_, other.block_size_);
             std::swap(block_, other.block_);
@@ -218,7 +218,7 @@ class MemArena {
 
 /// A standard-compatible memory arena allocator.
 template <typename T, typename Alloc = std::allocator<std::byte>>
-class MemArenaAllocator {
+class MemoryArenaAllocator {
   public:
     typedef T value_type;
 
@@ -231,22 +231,22 @@ class MemArenaAllocator {
     typedef std::false_type is_always_equal;
 
   public:
-    MemArenaAllocator(size_t block_size = 0, const Alloc& alloc = Alloc())
-        : arena_(new MemArena<Alloc>(block_size, alloc)) {
+    MemoryArenaAllocator(size_t block_size = 0, const Alloc& alloc = Alloc())
+        : arena_(new MemoryArena<Alloc>(block_size, alloc)) {
     }
 
     template <typename U>
-    MemArenaAllocator(const MemArenaAllocator<U, Alloc>& other)
+    MemoryArenaAllocator(const MemoryArenaAllocator<U, Alloc>& other)
         : arena_(other.arena_) {
     }
 
     template <typename U>
-    MemArenaAllocator(MemArenaAllocator<U, Alloc>&& other)
+    MemoryArenaAllocator(MemoryArenaAllocator<U, Alloc>&& other)
         : arena_(std::move(other.arena_)) {
     }
 
     template <typename U>
-    MemArenaAllocator& operator=(const MemArenaAllocator<U, Alloc>& other) {
+    MemoryArenaAllocator& operator=(const MemoryArenaAllocator<U, Alloc>& other) {
         if (this != &other) {
             this->arena_ = other.arena_;
         }
@@ -254,7 +254,7 @@ class MemArenaAllocator {
     }
 
     template <typename U>
-    MemArenaAllocator& operator=(MemArenaAllocator<U, Alloc>&& other) {
+    MemoryArenaAllocator& operator=(MemoryArenaAllocator<U, Alloc>&& other) {
         this->arena_ = std::move(other.arena_);
         return *this;
     }
@@ -275,40 +275,40 @@ class MemArenaAllocator {
     }
 
     template <typename U>
-    bool operator==(const MemArenaAllocator<U, Alloc>& other) const {
+    bool operator==(const MemoryArenaAllocator<U, Alloc>& other) const {
         return arena_.get() == other.arena_.get();
     }
 
     template <typename U>
-    bool operator!=(const MemArenaAllocator<U, Alloc>& other) const {
+    bool operator!=(const MemoryArenaAllocator<U, Alloc>& other) const {
         return arena_.get() != other.arena_.get();
     }
 
   private:
-    std::shared_ptr<MemArena<Alloc>> arena_;
+    std::shared_ptr<MemoryArena<Alloc>> arena_;
 
     template <typename, typename>
-    friend class MemArenaAllocator;
+    friend class MemoryArenaAllocator;
 };
 
 } // namespace pre
 
 template <typename Alloc>
-inline void* operator new(size_t size, pre::MemArena<Alloc>& mem_arena) {
+inline void* operator new(size_t size, pre::MemoryArena<Alloc>& mem_arena) {
     return mem_arena.allocate(size);
 }
 
 template <typename Alloc>
-inline void* operator new[](size_t size, pre::MemArena<Alloc>& mem_arena) {
+inline void* operator new[](size_t size, pre::MemoryArena<Alloc>& mem_arena) {
     return mem_arena.allocate(size);
 }
 
 template <typename Alloc>
-inline void operator delete(void*, pre::MemArena<Alloc>&) noexcept {
+inline void operator delete(void*, pre::MemoryArena<Alloc>&) noexcept {
 }
 
 template <typename Alloc>
-inline void operator delete[](void*, pre::MemArena<Alloc>&) noexcept {
+inline void operator delete[](void*, pre::MemoryArena<Alloc>&) noexcept {
 }
 
-#endif // #ifndef PRE_MEMORY_MEM_ARENA
+#endif // #ifndef PRE_DATA_STRUCTURES_MEMORY_ARENA
