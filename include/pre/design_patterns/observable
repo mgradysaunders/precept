@@ -1,5 +1,5 @@
 /*-*- C++ -*-*/
-/* Copyright (c) 2018-20 M. Grady Saunders
+/* Copyright (c) 2018-21 M. Grady Saunders
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -50,7 +50,7 @@
 #include <pre/design_patterns/id_string>
 
 // for pre::RefCountable
-#include <pre/design_patterns/ref_countable>
+#include <pre/design_patterns/ref>
 
 namespace pre {
 
@@ -73,6 +73,7 @@ class Observable {
   private:
     Callbacks callbacks_;
 
+    template <typename...>
     friend class Observer;
 };
 
@@ -118,7 +119,7 @@ class Observer {
     std::vector<Subscription> subscrs_;
 
   public:
-    template <concepts::subclass<Observable> Subclass>
+    template <concepts::subclass<Observable<Args...>> Subclass>
     void subscribe(
             Subclass& subclass,
             const IdString& what,

@@ -234,6 +234,8 @@ template <typename T>
 
 #ifdef PRE_ARRAY
 
+#include <pre/memory>
+
 #include "_hidden/_array/math.inl"
 
 #endif // #ifdef PRE_ARRAY

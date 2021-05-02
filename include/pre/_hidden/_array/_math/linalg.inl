@@ -15,25 +15,25 @@ struct Linalg {
     /// A cache to prevent excessive heap allocations.
     struct Cache {
         auto scoped_push() {
-            return mem_stack_.scoped_push();
+            return stack_.scoped_push();
         }
         void clear() noexcept {
-            mem_stack_.clear();
+            stack_.clear();
         }
         template <typename T>
         VecView<T> vector(ssize_t n) {
-            T* ptr = static_cast<T*>(mem_stack_.allocate(sizeof(T) * n));
+            T* ptr = static_cast<T*>(stack_.allocate(sizeof(T) * n));
             return {ptr, n};
         }
         template <typename T>
         MatView<T> matrix(ssize_t m, ssize_t n) {
-            T* ptr = static_cast<T*>(mem_stack_.allocate(sizeof(T) * m * n));
-            const ssize_t ssizes[] = {m, n};
-            return {ptr, &ssizes[0]};
+            T* ptr = static_cast<T*>(stack_.allocate(sizeof(T) * m * n));
+            const ssize_t sizes[] = {m, n};
+            return {ptr, &sizes[0]};
         }
 
       private:
-        MemoryStack<Alloc> mem_stack_;
+        HeapStack<Alloc> stack_;
     };
 
     Cache cache_;

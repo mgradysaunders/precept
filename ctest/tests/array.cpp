@@ -88,17 +88,6 @@ TEST_CASE("Array") {
                            3 * 1 + 4 * 4, 3 * 2 + 4 * 5, 3 * 3 + 4 * 6})
                           .all());
         }
-#if 0
-        SUBCASE("Permutations") {
-            pre::Array<int, 3> vec = {2, 0, 1};
-            pre::Array<int, 3, 3> row = pre::permutation_matrix(vec);
-            pre::Array<int, 3, 3> col = row.transpose();
-            pre::Array<int, 3, 3> arr = {{1, 2, 3}, {4, 5, 6}, {7, 8, 9}};
-            CHECK((row.dot(arr) == arr.swizzle(vec)).all());
-            CHECK((arr.dot(col) == arr.transpose().swizzle(vec).transpose())
-                          .all());
-        }
-#endif
     }
 }
 

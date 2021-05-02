@@ -14,6 +14,12 @@ template <typename T, typename U>
     return (1 - t) * p0 + t * p1;
 }
 
+/// Ease in and out.
+template <typename T>
+[[gnu::always_inline]] constexpr T ease(T t) {
+    return t * t * (3 - 2 * t);
+}
+
 /// Ease in.
 template <typename T>
 [[gnu::always_inline]] constexpr T ease_in(T t) {
@@ -26,10 +32,23 @@ template <typename T>
     return t * (2 - t);
 }
 
-/// Ease in and out.
-template <typename T>
-[[gnu::always_inline]] constexpr T ease_in_out(T t) {
-    return t * t * (3 - 2 * t);
+/// Elastic ease in.
+template <std::floating_point T>
+[[gnu::always_inline]] inline T elastic_in(T t) {
+    if (0 < t && t < 1) {
+        constexpr T a = M_PI * 2 / 3 * 8;
+        constexpr T b = M_PI_2;
+        T u = 8 * t - 8;
+        return -T(t * std::exp2(u) * std::sin(a * u - b));
+    }
+    else
+        return t;
+}
+
+/// Elastic ease out.
+template <std::floating_point T>
+[[gnu::always_inline]] inline T elastic_out(T t) {
+    return 1 - elastic_in(1 - t);
 }
 
 /// Smoothstep.

@@ -1,5 +1,5 @@
-#include "../../doctest.h"
-#include <pre/data_structures/static_stack>
+#include "../doctest.h"
+#include <pre/memory>
 
 TEST_CASE("StaticStack") {
     pre::StaticStack<int, 8> stack;

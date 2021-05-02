@@ -1,59 +1,22 @@
 /*-*- C++ -*-*/
-/* Copyright (c) 2018-21 M. Grady Saunders
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions
- * are met:
- *
- *   1. Redistributions of source code must retain the above
- *      copyright notice, this list of conditions and the following
- *      disclaimer.
- *
- *   2. Redistributions in binary form must reproduce the above
- *      copyright notice, this list of conditions and the following
- *      disclaimer in the documentation and/or other materials
- *      provided with the distribution.
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED
- * TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
- * PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR
- * CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
- * EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
- * PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
- * PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY
- * OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
- * NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
- * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- */
-/*-*-*-*-*-*-*/
-#if !(__cplusplus >= 201709L)
-#error "Precept requires >= C++20"
-#endif // #if !(__cplusplus >= 201709L)
 #pragma once
-#ifndef PRE_DATA_STRUCTURES_MEMORY_STACK
-#define PRE_DATA_STRUCTURES_MEMORY_STACK
-
-#include <memory>
-#include <vector>
-#include <pre/meta>
 
 namespace pre {
 
-/// A memory stack.
+/// A heap-allocated memory stack.
 ///
 /// This structure is meant to optimize heap-allocations in contexts
 /// where memory in use can be checkpointed and rolled back using stack-style
 /// push and pop operations.
 ///
 template <typename Alloc = std::allocator<std::byte>>
-struct MemoryStack {
+struct HeapStack {
   public:
     typedef Alloc allocator_type;
 
     typedef std::allocator_traits<Alloc> allocator_traits;
 
-    MemoryStack(size_t block_size = 0, const Alloc& alloc = Alloc())
+    HeapStack(size_t block_size = 0, const Alloc& alloc = Alloc())
         : block_size_(block_size), alloc_(alloc), pushes_(alloc) {
         if (block_size_ == 0)
             block_size_ = 65536;
@@ -61,26 +24,26 @@ struct MemoryStack {
         pushes_.reserve(8);
     }
 
-    MemoryStack(const MemoryStack&) = delete;
+    HeapStack(const HeapStack&) = delete;
 
-    MemoryStack(MemoryStack&& other) noexcept
+    HeapStack(HeapStack&& other) noexcept
         : block_size_(other.block_size_),
-          block_tail_(std::exchange(other.block_tail_, nullptr)),
+          block_tail_(steal(other.block_tail_)),
           alloc_(std::move(other.alloc_)), pushes_(std::move(other.pushes_)) {
     }
 
-    ~MemoryStack() {
+    ~HeapStack() {
         clear();
         block_deallocate_(block_tail_);
         block_tail_ = nullptr;
     }
 
-    MemoryStack& operator=(const MemoryStack&) = delete;
+    HeapStack& operator=(const HeapStack&) = delete;
 
-    MemoryStack& operator=(MemoryStack&& other) noexcept {
-        this->~MemoryStack();
+    HeapStack& operator=(HeapStack&& other) noexcept {
+        this->~HeapStack();
         block_size_ = other.block_size_;
-        block_tail_ = std::exchange(other.block_tail_, nullptr);
+        block_tail_ = steal(other.block_tail_);
         alloc_ = std::move(other.alloc_);
         pushes_ = std::move(other.pushes_);
         return *this;
@@ -202,5 +165,3 @@ struct MemoryStack {
 };
 
 } // namespace pre
-
-#endif // #ifndef PRE_DATA_STRUCTURES_MEMORY_STACK

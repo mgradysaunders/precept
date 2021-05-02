@@ -1,4 +1,4 @@
-#include "../../doctest.h"
+#include "../doctest.h"
 #include <sstream>
 #include <pre/bound_box>
 #include <pre/design_patterns/id_string>

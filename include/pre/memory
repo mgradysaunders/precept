@@ -1,5 +1,5 @@
 /*-*- C++ -*-*/
-/* Copyright (c) 2018-21 M. Grady Saunders
+/* Copyright (c) 2018-20 M. Grady Saunders
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -31,44 +31,37 @@
 #error "Precept requires >= C++20"
 #endif // #if !(__cplusplus >= 201709L)
 #pragma once
-#ifndef PRE_DESIGN_PATTERNS_PREPARABLE
-#define PRE_DESIGN_PATTERNS_PREPARABLE
+#ifndef PRE_MEMORY
+#define PRE_MEMORY
 
-namespace pre {
+#include <cstddef>
 
-/// A preparable object.
-template <typename... Args>
-class Preparable {
-  public:
-    virtual ~Preparable() = default;
+#include <cstdint>
 
-    /// Prepare.
-    void prepare(Args... args) {
-        if (is_prepared_ == false) {
-            is_prepared_ = true;
-            on_prepare(args...);
-        }
-    }
+#include <cstring>
 
-    /// Unprepare, to undo anything done by `prepare()`.
-    void unprepare() {
-        if (is_prepared_ == true) {
-            is_prepared_ = false;
-            on_unprepare();
-        }
-    }
+#include <memory>
 
-  protected:
-    /// On-prepare handler.
-    virtual void on_prepare(Args... args) = 0;
+#include <vector>
 
-    /// On-unprepare handler, to undo anything done by `on_prepare()`.
-    virtual void on_unprepare() = 0;
+#include <string>
 
-  private:
-    bool is_prepared_ = false;
-};
+#include <string_view>
 
-} // namespace pre
+#include <pre/meta>
 
-#endif // #ifndef PRE_DESIGN_PATTERNS_PREPARABLE
+#include "_hidden/_memory/heap_arena.inl"
+
+#include "_hidden/_memory/heap_arena_allocator.inl"
+
+#include "_hidden/_memory/heap_pool.inl"
+
+#include "_hidden/_memory/heap_stack.inl"
+
+#include "_hidden/_memory/static_queue.inl"
+
+#include "_hidden/_memory/static_stack.inl"
+
+#include "_hidden/_memory/static_string.inl"
+
+#endif // #ifndef PRE_MEMORY

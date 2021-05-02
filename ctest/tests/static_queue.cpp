@@ -1,5 +1,5 @@
-#include "../../doctest.h"
-#include <pre/data_structures/static_queue>
+#include "../doctest.h"
+#include <pre/memory>
 
 TEST_CASE("StaticQueue") {
     pre::StaticQueue<int, 8> queue;

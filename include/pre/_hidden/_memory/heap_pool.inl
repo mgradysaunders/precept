@@ -1,61 +1,11 @@
 /*-*- C++ -*-*/
-/* Copyright (c) 2018-21 M. Grady Saunders
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions
- * are met:
- *
- *   1. Redistributions of source code must retain the above
- *      copyright notice, this list of conditions and the following
- *      disclaimer.
- *
- *   2. Redistributions in binary form must reproduce the above
- *      copyright notice, this list of conditions and the following
- *      disclaimer in the documentation and/or other materials
- *      provided with the distribution.
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED
- * TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
- * PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR
- * CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
- * EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
- * PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
- * PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY
- * OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
- * NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
- * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- */
-/*-*-*-*-*-*-*/
-#if !(__cplusplus >= 201709L)
-#error "Precept requires >= C++20"
-#endif // #if !(__cplusplus >= 201709L)
 #pragma once
-#ifndef PRE_DATA_STRUCTURES_MEMORY_POOL
-#define PRE_DATA_STRUCTURES_MEMORY_POOL
-
-// for assert
-#include <cassert>
-
-// for size_t, std::ptrdiff_t, ...
-#include <cstddef>
-
-// for std::memcpy
-#include <cstring>
-
-// for std::logic_error, std::invalid_argument, ...
-#include <stdexcept>
-
-// for std::allocator, std::allocator_traits, ...
-#include <memory>
-
-#include <utility>
 
 namespace pre {
 
-/// A memory pool.
+/// A heap-allocated memory pool.
 template <typename Alloc = std::allocator<std::byte>>
-class MemoryPool {
+class HeapPool {
   public:
     typedef Alloc allocator_type;
 
@@ -73,11 +23,13 @@ class MemoryPool {
     /// \param[in] alloc
     /// Allocator.
     ///
-    MemoryPool(
+    HeapPool(
             size_t elem_size,
             size_t pool_size = 0,
             const Alloc& alloc = Alloc()) noexcept
-        : elem_size_(elem_size), pool_size_(pool_size), alloc_(alloc) {
+        : elem_size_(elem_size), //
+          pool_size_(pool_size), //
+          alloc_(alloc) {
         if (elem_size_ < sizeof(void*))
             elem_size_ = sizeof(void*);
         if (pool_size_ == 0) {
@@ -87,34 +39,33 @@ class MemoryPool {
         }
     }
 
-    MemoryPool(const MemoryPool&) = delete;
+    HeapPool(const HeapPool&) = delete;
 
-    MemoryPool(MemoryPool&& other) noexcept
-        : elem_size_(std::exchange(other.elem_size_, 0)),
-          pool_size_(std::exchange(other.pool_size_, 0)),
-          first_(std::exchange(other.first_, nullptr)),
-          alloc_(std::move(other.alloc_)) {
+    HeapPool(HeapPool&& other) noexcept
+        : elem_size_(steal(other.elem_size_)),
+          pool_size_(steal(other.pool_size_)), //
+          first_(steal(other.first_)), alloc_(std::move(other.alloc_)) {
     }
 
-    MemoryPool(MemoryPool&& other, const Alloc& alloc)
-        : elem_size_(std::exchange(other.elem_size_, 0)),
-          pool_size_(std::exchange(other.pool_size_, 0)),
-          first_(std::exchange(other.first_, nullptr)), alloc_(alloc) {
-        // We need to be able to deallocate the pointers we stole!
-        if (alloc_ != other.alloc)
+    HeapPool(HeapPool&& other, const Alloc& alloc) : alloc_(alloc) {
+        // We need to be able to deallocate the pointers we steal!
+        if (alloc_ == other.alloc)
             throw std::invalid_argument(__func__);
+        elem_size_ = steal(other.elem_size_);
+        pool_size_ = steal(other.pool_size_);
+        first_ = steal(other.first_);
     }
 
-    ~MemoryPool() {
+    ~HeapPool() {
         reset();
     }
 
-    MemoryPool& operator=(const MemoryPool&) = delete;
+    HeapPool& operator=(const HeapPool&) = delete;
 
-    MemoryPool& operator=(MemoryPool&& other) noexcept {
-        elem_size_ = std::exchange(other.elem_size_, 0);
-        pool_size_ = std::exchange(other.pool_size_, 0);
-        first_ = std::exchange(other.first_, nullptr);
+    HeapPool& operator=(HeapPool&& other) noexcept {
+        elem_size_ = steal(other.elem_size_);
+        pool_size_ = steal(other.pool_size_);
+        first_ = steal(other.first_);
         if constexpr (allocator_traits::
                               propagate_on_container_move_assignment::value)
             alloc_ = std::move(other.alloc_);
@@ -179,7 +130,7 @@ class MemoryPool {
         first_ = nullptr;
     }
 
-    void swap(MemoryPool& other) noexcept {
+    void swap(HeapPool& other) noexcept {
         if (this != &other) {
             std::swap(elem_size_, other.elem_size_);
             std::swap(pool_size_, other.pool_size_);
@@ -250,24 +201,24 @@ class MemoryPool {
     }
 };
 
-/// A memory pool for a given object type.
+/// A heap-allocated pool for a given object.
 template <typename Obj, typename Alloc = std::allocator<std::byte>>
-class ObjectMemoryPool final : public MemoryPool<Alloc> {
+class ObjectHeapPool final : public HeapPool<Alloc> {
   public:
-    using Base = MemoryPool<Alloc>;
+    using Base = HeapPool<Alloc>;
 
-    ObjectMemoryPool(size_t pool_size, const Alloc& alloc = Alloc())
+    ObjectHeapPool(size_t pool_size, const Alloc& alloc = Alloc())
         : Base(sizeof(Obj), pool_size, alloc) {
     }
 
-    ObjectMemoryPool(ObjectMemoryPool&& other) noexcept : Base(other) {
+    ObjectHeapPool(ObjectHeapPool&& other) noexcept : Base(other) {
     }
 
-    ObjectMemoryPool(ObjectMemoryPool&& other, const Alloc& alloc)
+    ObjectHeapPool(ObjectHeapPool&& other, const Alloc& alloc)
         : Base(other, alloc) {
     }
 
-    ~ObjectMemoryPool() = default;
+    ~ObjectHeapPool() = default;
 
     Obj* allocate() {
         return static_cast<Obj*>(static_cast<Base&>(*this).allocate());
@@ -287,5 +238,3 @@ class ObjectMemoryPool final : public MemoryPool<Alloc> {
 };
 
 } // namespace pre
-
-#endif // #ifndef PRE_DATA_STRUCTURES_MEMORY_POOL

@@ -1,5 +1,5 @@
 /*-*- C++ -*-*/
-/* Copyright (c) 2018-20 M. Grady Saunders
+/* Copyright (c) 2018-21 M. Grady Saunders
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -56,10 +56,10 @@
 #include <variant>
 
 // for pre::StaticString
-#include <pre/data_structures/static_string>
+#include <pre/memory>
 
-// for pre::RefCountable, pre::Ref
-#include <pre/design_patterns/ref_countable>
+// for pre::Ref, pre::RefCountable
+#include <pre/design_patterns/ref>
 
 #if __has_include(<zlib.h>)
 
@@ -86,7 +86,7 @@ inline std::map<StaticString<char, 64>, Serializable* (*)()> serializable_new;
 /// countable, and used with the `Ref` reference counter in order to be
 /// serialized.
 ///
-/// Most derived subclasses must be final, must be default constructible,
+/// Most-derived subclasses must be final, must be default constructible,
 /// must place the `SERIALIZABLE` macro inside the class body, and must
 /// implement the `serialize` method. For example,
 /// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~{.cpp}

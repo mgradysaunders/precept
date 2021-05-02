@@ -42,8 +42,6 @@
 
 #include <pre/meta>
 
-#include <pre/data_structures/memory_stack>
-
 namespace pre {
 
 template <typename, size_t>
@@ -662,6 +660,8 @@ constexpr Array<T, N, M> transpose(const Array<T, M, N>& arr) noexcept {
 #include "_hidden/_array/operators.inl"
 
 #ifdef PRE_MATH
+
+#include <pre/memory>
 
 #include "_hidden/_array/math.inl"
 
