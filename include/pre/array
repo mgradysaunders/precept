@@ -410,6 +410,25 @@ struct Array<Entry, M, N...> : Array_initializers<Array<Entry, M, N...>> {
         return *data();
     }
 
+    /// Swizzle.
+    template <std::integral Index, size_t K>
+    constexpr Array<Entry, K, N...> swizzle(
+            const Array<Index, K>& k) const noexcept {
+        Array<Entry, K, N...> res;
+        auto itrres = res.begin();
+        auto itrk = k.begin();
+        for (; itrk < k.end(); ++itrres, ++itrk)
+            *itrres = operator[](*itrk);
+        return res;
+    }
+
+    /// Swizzle.
+    template <std::integral Index, std::integral... Indexes>
+    constexpr Array<Entry, 1 + sizeof...(Indexes), N...> swizzle(
+            Index p, Indexes... q) const noexcept {
+        return swizzle(Array<Index, 1 + sizeof...(Indexes)>{p, q...});
+    }
+
   public:
     /// \name Folds
     /** \{ */
@@ -636,7 +655,6 @@ constexpr Array<T, M, N> outer(
         const Array<T, M>& lhs, const Array<U, N>& rhs) noexcept {
     return dot(lhs.template reshape<M, 1>(), rhs.template reshape<1, N>());
 }
-
 
 template <typename T, size_t M, size_t N>
 constexpr T trace(const Array<T, M, N>& arr) noexcept {

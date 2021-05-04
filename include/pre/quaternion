@@ -280,7 +280,7 @@ class Quaternion<Float> final : public BasicQuaternion<Float> {
             const Quaternion& q0,
             const Quaternion& q1,
             Quaternion* dq_dmu = nullptr) noexcept {
-        Float cos_theta = q0.clamp_dot(q1);
+        Float cos_theta = clamp(dot(q0, q1), Float(-1), Float(+1));
         if (!(cos_theta < Float(0.9999))) {
             Quaternion q = lerp(mu, q0, q1);
             Float inv_len2 = Float(1) / q.norm();
