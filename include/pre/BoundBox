@@ -34,7 +34,7 @@
 #ifndef PRE_SHAPES_BOUND_BOX
 #define PRE_SHAPES_BOUND_BOX
 
-#include <pre/array>
+#include <pre/Array>
 #include <pre/math>
 
 namespace pre {

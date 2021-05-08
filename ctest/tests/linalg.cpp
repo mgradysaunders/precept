@@ -1,6 +1,6 @@
 #include "../doctest.h"
 #include <pre/random>
-#include <pre/array>
+#include <pre/Array>
 #include <pre/math>
 
 template <typename Field>

@@ -31,8 +31,8 @@
 #error "Precept requires >= C++20"
 #endif // #if !(__cplusplus >= 201709L)
 #pragma once
-#ifndef PRE_DESIGN_PATTERNS_REF
-#define PRE_DESIGN_PATTERNS_REF
+#ifndef PRE_DESIGN_PATTERNS_REF_PTR
+#define PRE_DESIGN_PATTERNS_REF_PTR
 
 #include <atomic>
 #include <pre/meta>
@@ -78,34 +78,34 @@ inline void decr_ref(RefCountable* ptr) {
 
 /// A reference counter for a reference countable pointer.
 template <typename T>
-class Ref {
+class RefPtr {
   public:
-    constexpr Ref() noexcept = default;
+    constexpr RefPtr() noexcept = default;
 
-    constexpr Ref(std::nullptr_t) noexcept {
+    constexpr RefPtr(std::nullptr_t) noexcept {
     }
 
-    Ref(const Ref& other) noexcept : ptr_(other.ptr_) {
+    RefPtr(const RefPtr& other) noexcept : ptr_(other.ptr_) {
         incr_ref(ptr_);
     }
 
-    Ref(Ref&& other) noexcept : ptr_(other.ptr_) {
+    RefPtr(RefPtr&& other) noexcept : ptr_(other.ptr_) {
         other.ptr_ = nullptr;
     }
 
-    explicit Ref(T* ptr) : ptr_(ptr) {
+    explicit RefPtr(T* ptr) : ptr_(ptr) {
         incr_ref(ptr_);
     }
 
     /// Steal pointer, dummy int for overload
-    explicit Ref(T* ptr, int) : ptr_(ptr) {
+    explicit RefPtr(T* ptr, int) : ptr_(ptr) {
     }
 
-    ~Ref() {
+    ~RefPtr() {
         decr_ref(ptr_);
     }
 
-    Ref& operator=(const Ref& other) noexcept {
+    RefPtr& operator=(const RefPtr& other) noexcept {
         if (ptr_ != other.ptr_) {
             decr_ref(ptr_);
             ptr_ = other.ptr_;
@@ -114,7 +114,7 @@ class Ref {
         return *this;
     }
 
-    Ref& operator=(Ref&& other) noexcept {
+    RefPtr& operator=(RefPtr&& other) noexcept {
         decr_ref(ptr_);
         ptr_ = other.ptr_;
         other.ptr_ = nullptr;
@@ -142,7 +142,7 @@ class Ref {
         incr_ref(ptr_);
     }
 
-    void swap(Ref& other) noexcept {
+    void swap(RefPtr& other) noexcept {
         std::swap(ptr_, other.ptr_);
     }
 
@@ -151,9 +151,9 @@ class Ref {
     }
 
   public:
-    auto operator<=>(const Ref&) const = default;
+    auto operator<=>(const RefPtr&) const = default;
 
-    bool operator==(const Ref&) const = default;
+    bool operator==(const RefPtr&) const = default;
 
     decltype(auto) operator*() noexcept {
         return (*ptr_);
@@ -176,8 +176,14 @@ class Ref {
     }
 
     template <typename U>
-    operator Ref<U>&() noexcept requires std::is_base_of_v<U, T> {
-        return reinterpret_cast<Ref<U>&>(*this);
+    operator RefPtr<U>&() noexcept requires std::is_base_of_v<U, T> {
+        return reinterpret_cast<RefPtr<U>&>(*this);
+    }
+
+    template <typename U>
+    operator const RefPtr<U>&() const noexcept
+            requires std::is_base_of_v<U, T> {
+        return reinterpret_cast<const RefPtr<U>&>(*this);
     }
 
   private:
@@ -185,13 +191,18 @@ class Ref {
 };
 
 template <concepts::subclass<RefCountable> T>
-Ref(T*) -> Ref<T>;
+RefPtr(T*) -> RefPtr<T>;
 
 template <typename U, typename T>
-inline auto ref_cast(const Ref<T>& ref) {
-    return Ref(reinterpret_cast<U*>(ref.get()));
+inline auto ref_cast(const RefPtr<T>& ref) {
+    return RefPtr(reinterpret_cast<U*>(ref.get()));
+}
+
+template <typename T, typename... Args>
+inline auto make_ref(Args&&... args) {
+    return RefPtr(new T(std::forward<Args>(args)...));
 }
 
 } // namespace pre
 
-#endif // #ifndef PRE_DESIGN_PATTERNS_REF
+#endif // #ifndef PRE_DESIGN_PATTERNS_REF_PTR

@@ -58,8 +58,8 @@
 // for pre::StaticString
 #include <pre/memory>
 
-// for pre::Ref, pre::RefCountable
-#include <pre/design_patterns/ref>
+// for pre::RefPtr, pre::RefCountable
+#include <pre/design_patterns/RefPtr>
 
 #if __has_include(<zlib.h>)
 
@@ -83,7 +83,7 @@ inline std::map<StaticString<char, 64>, Serializable* (*)()> serializable_new;
 ///
 /// This class defines an interface to a dynamic object usable with the
 /// serializer class. Notice that serializable objects must be reference
-/// countable, and used with the `Ref` reference counter in order to be
+/// countable, and used with the `RefPtr` reference counter in order to be
 /// serialized.
 ///
 /// Most-derived subclasses must be final, must be default constructible,
@@ -100,13 +100,13 @@ inline std::map<StaticString<char, 64>, Serializable* (*)()> serializable_new;
 ///     int bar_ = 0;
 /// };
 /// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-/// Then, the type `Ref<Foo>` is serializable using the spaceship
+/// Then, the type `RefPtr<Foo>` is serializable using the spaceship
 /// operator. Note that it is only necessary to implement a serializable
 /// class with this interface if the class type needs to be dynamic. In
 /// the above example, `Foo` could simply implement `serialize()` without
 /// inheriting from `Serializable` or using the `SERIALIZABLE` macro and
 /// `Foo` would still be serializable using the spaceship operator, but
-/// `Ref<Foo>` would not be.
+/// `RefPtr<Foo>` would not be.
 ///
 class Serializable : virtual public RefCountable {
   public:
@@ -208,10 +208,10 @@ class Serializer {
     const Mode mode_;
 
     /// Bookkeeping for serializable objects read.
-    std::vector<Ref<Serializable>> objects_read_;
+    std::vector<RefPtr<Serializable>> objects_read_;
 
     /// Bookkeeping for serializable objects written.
-    std::map<Ref<Serializable>, std::uint32_t> objects_written_;
+    std::map<RefPtr<Serializable>, std::uint32_t> objects_written_;
 
   public:
     /// Read or write primitive elements.
@@ -274,7 +274,7 @@ class Serializer {
     /// thing read or written, and the object is looked-up or stored in
     /// the bookkeeping members `objects_read_` and `objects_written_`.
     ///
-    void read_or_write(Ref<Serializable>& value) {
+    void read_or_write(RefPtr<Serializable>& value) {
         constexpr std::uint32_t NextIndex = std::uint32_t(-1);
         constexpr std::uint32_t NullIndex = std::uint32_t(-2);
         if (reading()) {
@@ -295,7 +295,7 @@ class Serializer {
                 read_or_write(&subclass[0], 64, 1);
                 const auto& value_new = serializable_new.at(
                         StaticString<char, 64>(&subclass[0]));
-                value = Ref(value_new());
+                value = RefPtr(value_new());
                 objects_read_.push_back(value);
                 value->serialize(*this);
             }
@@ -353,7 +353,7 @@ inline Serializer& operator<=>(
 
 /// Serialize serializable object.
 inline Serializer& operator<=>(
-        Serializer& serializer, Ref<Serializable>& value) {
+        Serializer& serializer, RefPtr<Serializable>& value) {
     serializer.read_or_write(value);
     return serializer;
 }

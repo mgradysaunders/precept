@@ -4,18 +4,18 @@ message(STATUS "CMAKE_CXX_FLAGS: ${CMAKE_CXX_FLAGS}")
 add_executable(
     precept_tests
     doctest.cpp
-    tests/array.cpp
-    tests/half.cpp
+    tests/Array.cpp
+    tests/Half.cpp
     tests/linalg.cpp
     tests/math.cpp
     tests/meta.cpp
-    tests/preparable.cpp
-    tests/observable.cpp
-    tests/ref.cpp
-    tests/serializable.cpp
-    tests/static_queue.cpp
-    tests/static_stack.cpp
-    tests/timer.cpp
+    tests/Preparable.cpp
+    tests/Observable.cpp
+    tests/RefPtr.cpp
+    tests/Serializable.cpp
+    tests/StaticQueue.cpp
+    tests/StaticStack.cpp
+    tests/Timer.cpp
     )
 
 set_target_properties(

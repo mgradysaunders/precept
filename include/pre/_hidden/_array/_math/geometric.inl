@@ -177,18 +177,19 @@ inline auto distance2(
 
 /// Normalize by Euclidean length.
 template <concepts::arithmetic_or_complex T, size_t N>
-inline auto normalize(
-        const Array<T, N>& arr,
-        to_floating_point_t<T>* out_len = nullptr) noexcept {
+inline auto normalize(const Array<T, N>& arr) noexcept {
     using Float = to_floating_point_t<T>;
     using Entry = decltype(arr[0] / Float(1));
     Array<Entry, N> res;
-    Float len = length(arr);
-    if (out_len)
-        out_len[0] = len;
-    if (len > 0)
+    if (Float len = length(arr); len > 0)
         res = arr / len;
     return res;
+}
+
+/// Normalize by Euclidean length.
+template <concepts::arithmetic_or_complex T, size_t N>
+inline auto fast_normalize(const Array<T, N>& arr) noexcept {
+    return arr * (to_floating_point_t<T>(1) / pre::sqrt(length2(arr)));
 }
 
 /// Angle between vectors in 2-dimensions.
@@ -282,8 +283,7 @@ inline auto svd(const Array<T, M, N>& arr) {
         Array<Float, pre::min(M, N)> s;
         Array<Field, M, M> u;
         Array<Field, N, N> v;
-    }
-    result;
+    } result;
     Linalg<Field> linalg;
     linalg.svd(x, result.u, result.v);
     result.s = Array<Field, pre::min(M, N)>(*x->diag());

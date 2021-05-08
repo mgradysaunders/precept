@@ -1,8 +1,8 @@
 #include "../doctest.h"
 #include <sstream>
-#include <pre/bound_box>
-#include <pre/design_patterns/id_string>
-#include <pre/design_patterns/serializable>
+#include <pre/BoundBox>
+#include <pre/design_patterns/IdString>
+#include <pre/design_patterns/Serializable>
 
 static int Serial_ctor_calls = 0;
 static int Serial_dtor_calls = 0;
@@ -27,7 +27,7 @@ class SerialBranch final : public Serial {
     }
 
   public:
-    std::map<std::string, pre::Ref<Serial>> serials;
+    std::map<std::string, pre::RefPtr<Serial>> serials;
 };
 
 class SerialLeaf final : public Serial {
@@ -52,17 +52,17 @@ class SerialLeaf final : public Serial {
 TEST_CASE("Serializable") {
     std::stringstream ss;
     {
-        pre::Ref branch1(new SerialBranch());
-        pre::Ref branch2(new SerialBranch());
-        pre::Ref leaf1(new SerialLeaf(
+        pre::RefPtr branch1(new SerialBranch());
+        pre::RefPtr branch2(new SerialBranch());
+        pre::RefPtr leaf1(new SerialLeaf(
                 "Leaf1", pre::BoundBox{
                                  pre::Array{-1.0, -2.0, -3.0},
                                  pre::Array{+1.0, +2.0, +3.0}}));
-        pre::Ref leaf2(new SerialLeaf(
+        pre::RefPtr leaf2(new SerialLeaf(
                 "Leaf2", pre::BoundBox{
                                  pre::Array{-3.0, -2.0, -1.0},
                                  pre::Array{+4.0, +5.0, +6.0}}));
-        pre::Ref leaf3(new SerialLeaf(
+        pre::RefPtr leaf3(new SerialLeaf(
                 "Leaf3", pre::BoundBox{
                                  pre::Array{-7.0, -7.0, -5.0},
                                  pre::Array{+1.0, +1.0, +1.0}}));
@@ -79,7 +79,7 @@ TEST_CASE("Serializable") {
     {
         Serial_ctor_calls = 0;
         Serial_dtor_calls = 0;
-        pre::Ref<Serial> foo(nullptr);
+        pre::RefPtr<Serial> foo(nullptr);
         pre::StandardSerializer serializer(static_cast<std::istream&>(ss));
         serializer <=> foo;
         CHECK(Serial_ctor_calls == 5);

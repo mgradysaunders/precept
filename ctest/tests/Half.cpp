@@ -1,6 +1,6 @@
 #include "../doctest.h"
 #include <pre/random>
-#include <pre/half>
+#include <pre/Half>
 
 TEST_CASE("Half") {
     SUBCASE("Accuracy") {

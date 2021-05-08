@@ -1,8 +1,8 @@
 #include "../doctest.h"
 #include <thread>
-#include <pre/timer>
+#include <pre/Timer>
 
-TEST_CASE("timer") {
+TEST_CASE("Timer") {
     pre::SystemTimer timer;
     SUBCASE("Read after sleep") {
         std::this_thread::sleep_for(std::chrono::seconds(1));

@@ -34,6 +34,8 @@
 #ifndef PRE_MEMORY
 #define PRE_MEMORY
 
+#include <atomic>
+
 #include <cstddef>
 
 #include <cstdint>

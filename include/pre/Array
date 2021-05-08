@@ -156,6 +156,14 @@ struct Array<Entry, M, N...> : Array_initializers<Array<Entry, M, N...>> {
         view() = std::move(lazy);
     }
 
+    template <std::uniform_random_bit_generator Rand, typename Pred>
+    explicit constexpr Array(Rand& rand, Pred&& pred) {
+        Entry* from = data();
+        Entry* to = data() + (M * ... * N);
+        while (from != to)
+            *from++ = std::invoke(pred, rand);
+    }
+
     constexpr Array& operator=(const Array&) noexcept = default;
 
     constexpr Array& operator=(Array&&) noexcept = default;

@@ -1,5 +1,5 @@
 #include "../doctest.h"
-#include <pre/design_patterns/observable>
+#include <pre/design_patterns/Observable>
 
 TEST_CASE("Observable") {
 

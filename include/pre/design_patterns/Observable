@@ -47,10 +47,10 @@
 #include <pre/meta>
 
 // for pre::IdString
-#include <pre/design_patterns/id_string>
+#include <pre/design_patterns/IdString>
 
 // for pre::RefCountable
-#include <pre/design_patterns/ref>
+#include <pre/design_patterns/RefPtr>
 
 namespace pre {
 

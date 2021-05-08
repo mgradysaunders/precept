@@ -1,6 +1,6 @@
 #include "../doctest.h"
 #include <pre/random>
-#include <pre/design_patterns/ref>
+#include <pre/design_patterns/RefPtr>
 
 TEST_CASE("RefCountable") {
     // Call counters
@@ -23,7 +23,7 @@ TEST_CASE("RefCountable") {
     pre::Pcg32 gen(getContextOptions()->rand_seed);
     {
         // Allocate and move around
-        std::vector<pre::Ref<Foo>> foos;
+        std::vector<pre::RefPtr<Foo>> foos;
         for (int repeat = 0; repeat < 8; repeat++) {
             for (int iter = 0; iter < 64; iter++) {
                 foos.emplace_back(new Foo(gen()));

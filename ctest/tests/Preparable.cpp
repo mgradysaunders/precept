@@ -1,7 +1,7 @@
 #include "../doctest.h"
 #include <vector>
-#include <pre/design_patterns/ref>
-#include <pre/design_patterns/preparable>
+#include <pre/design_patterns/RefPtr>
+#include <pre/design_patterns/Preparable>
 
 TEST_CASE("Preparable") {
     // Call counters
@@ -22,14 +22,14 @@ TEST_CASE("Preparable") {
                 foo->unprepare();
         }
 
-        std::vector<pre::Ref<Foo>> foos;
+        std::vector<pre::RefPtr<Foo>> foos;
     };
 
     // Some foos
-    pre::Ref foo1(new Foo());
-    pre::Ref foo2(new Foo());
-    pre::Ref foo3(new Foo());
-    pre::Ref foo4(new Foo());
+    pre::RefPtr foo1(new Foo());
+    pre::RefPtr foo2(new Foo());
+    pre::RefPtr foo3(new Foo());
+    pre::RefPtr foo4(new Foo());
     foo1->foos = {foo2};
     foo2->foos = {foo3, foo4};
     foo4->foos = {foo1, foo2};

@@ -1,7 +1,7 @@
 #include "../doctest.h"
 #include <sstream>
 #include <pre/random>
-#include <pre/array>
+#include <pre/Array>
 
 TEST_CASE("Array") {
     pre::Pcg32 gen(getContextOptions()->rand_seed);
