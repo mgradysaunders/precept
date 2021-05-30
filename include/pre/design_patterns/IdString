@@ -77,12 +77,14 @@ class IdString final : public StaticString<char, 60> {
         // clang-format on
     }
 
-    constexpr bool operator==(const IdString&) const = default;
+    constexpr bool operator==(const IdString& other) const {
+        return hash_ == other.hash_ and view() == other.view();
+    }
 
   public:
     void serialize(auto& serializer) {
         serializer <=> static_cast<StaticString&>(*this);
-        if (!serializer.reading())
+        if (serializer.reading())
             rehash();
     }
 
