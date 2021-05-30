@@ -10,7 +10,6 @@ add_executable(
     tests/math.cpp
     tests/meta.cpp
     tests/Preparable.cpp
-    tests/Observable.cpp
     tests/RefPtr.cpp
     tests/Serializable.cpp
     tests/StaticQueue.cpp
