@@ -1,5 +1,5 @@
 /*-*- C++ -*-*/
-/* Copyright (c) 2018-20 M. Grady Saunders
+/* Copyright (c) 2018-21 M. Grady Saunders
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -52,18 +52,18 @@
 
 #include <pre/meta>
 
-#include "_hidden/_memory/heap_arena.inl"
+#include "_hidden/_memory/HeapArena.inl"
 
-#include "_hidden/_memory/heap_arena_allocator.inl"
+#include "_hidden/_memory/HeapArenaAllocator.inl"
 
-#include "_hidden/_memory/heap_pool.inl"
+#include "_hidden/_memory/HeapPool.inl"
 
-#include "_hidden/_memory/heap_stack.inl"
+#include "_hidden/_memory/HeapStack.inl"
 
-#include "_hidden/_memory/static_queue.inl"
+#include "_hidden/_memory/StaticQueue.inl"
 
-#include "_hidden/_memory/static_stack.inl"
+#include "_hidden/_memory/StaticStack.inl"
 
-#include "_hidden/_memory/static_string.inl"
+#include "_hidden/_memory/StaticString.inl"
 
 #endif // #ifndef PRE_MEMORY

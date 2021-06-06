@@ -98,7 +98,7 @@ constexpr auto hermite(
 /// \param[in] p1  Control point at \f$ t = 1 \f$.
 ///
 template <typename T, typename U>
-constexpr auto hermit_deriv(
+constexpr auto hermite_deriv(
         T t, const U& p0, const U& m0, const U& m1, const U& p1) {
     T g00 = 6 * t * (t - 1);
     T g10 = 3 * t * t - 4 * t + 1;

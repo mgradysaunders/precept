@@ -67,6 +67,8 @@
 // for std::is_base_of_v, std::is_arithmetic_v, ...
 #include <type_traits>
 
+#include <variant>
+
 #if NDEBUG
 #define ASSERT(what) void(0)
 #else
@@ -75,15 +77,19 @@
 
 #include "_hidden/_meta/concepts.inl"
 
-#include "_hidden/_meta/explicit.inl"
+#include "_hidden/_meta/Explicit.inl"
 
-#include "_hidden/_meta/scoped.inl"
+#include "_hidden/_meta/Scoped.inl"
 
-#include "_hidden/_meta/iterator_range.inl"
+#include "_hidden/_meta/BitIterator.inl"
 
-#include "_hidden/_meta/array_like.inl"
+#include "_hidden/_meta/IteratorRange.inl"
+
+#include "_hidden/_meta/ArrayLike.inl"
 
 #include "_hidden/_meta/type_list.inl"
+
+#include "_hidden/_meta/Variant.inl"
 
 namespace pre {
 

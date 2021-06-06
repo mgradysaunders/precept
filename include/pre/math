@@ -236,7 +236,7 @@ template <typename T>
 
 #include <pre/memory>
 
-#include "_hidden/_array/math.inl"
+#include "_hidden/_Array/math.inl"
 
 #endif // #ifdef PRE_ARRAY
 

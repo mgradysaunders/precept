@@ -71,13 +71,13 @@ concept not_array = !is_array<T>::value;
 
 } // namespace pre
 
-#include "_hidden/_array/aliases.inl"
+#include "_hidden/_Array/aliases.inl"
 
-#include "_hidden/_array/multi_index.inl"
+#include "_hidden/_Array/MultiIndex.inl"
 
-#include "_hidden/_array/lazy.inl"
+#include "_hidden/_Array/Lazy.inl"
 
-#include "_hidden/_array/view.inl"
+#include "_hidden/_Array/View.inl"
 
 namespace pre {
 
@@ -683,13 +683,13 @@ constexpr Array<T, N, M> transpose(const Array<T, M, N>& arr) noexcept {
 
 } // namespace pre
 
-#include "_hidden/_array/operators.inl"
+#include "_hidden/_Array/operators.inl"
 
 #ifdef PRE_MATH
 
 #include <pre/memory>
 
-#include "_hidden/_array/math.inl"
+#include "_hidden/_Array/math.inl"
 
 #endif // #ifdef PRE_MATH
 
