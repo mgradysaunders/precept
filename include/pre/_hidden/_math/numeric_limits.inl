@@ -70,4 +70,16 @@ struct numeric_limits<T> : std::numeric_limits<T> {
 template <std::floating_point T>
 struct numeric_limits<std::complex<T>> : numeric_limits<T> {};
 
+template <typename T>
+constexpr auto Inf = numeric_limits<T>::infinity();
+
+template <typename T>
+constexpr auto NaN = numeric_limits<T>::quiet_NaN();
+
+template <typename T>
+constexpr auto Eps = numeric_limits<T>::epsilon();
+
+template <typename T>
+constexpr auto MachineEps = numeric_limits<T>::machine_epsilon();
+
 } // namespace pre
