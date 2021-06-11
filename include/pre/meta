@@ -67,6 +67,7 @@
 // for std::is_base_of_v, std::is_arithmetic_v, ...
 #include <type_traits>
 
+// for std::variant
 #include <variant>
 
 #if NDEBUG
