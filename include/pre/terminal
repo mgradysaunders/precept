@@ -36,43 +36,29 @@
 
 #if __linux__
 extern "C" {
-// for ioctl
 #include <sys/ioctl.h>
-
-// for STDOUT_FILENO
 #include <unistd.h>
-
 } // extern "C"
 #endif // #if __linux__
 
-// for assert
-#include <cassert>
-
-// for std::reverse, std::max, std::min
 #include <algorithm>
-
-// for std::function
 #include <functional>
-
-// for std::list
 #include <list>
-
-// for std::cout, std::cerr
 #include <iostream>
-
-// for std::format
-#include <format>
-
-// for std::string
 #include <string>
-
-// for std::string_view
 #include <string_view>
-
-// for concepts::ostream, type_list, ...
+#include <sstream>
 #include <pre/meta>
 
 namespace pre {
+
+template <typename Arg, typename... Args>
+inline std::string to_string(Arg&& arg, Args&&... args) {
+    std::ostringstream ss;
+    (ss << std::forward<Arg>(arg));
+    (ss << ... << std::forward<Args>(args));
+    return ss.str();
+}
 
 /// Bash codes for text styling.
 enum class BashCode : int {
@@ -126,7 +112,6 @@ enum class BashCode : int {
     ResetError
 };
 
-/// Write into `std::basic_ostream`.
 template <concepts::ostream Stream>
 inline Stream& operator<<(Stream& stream, BashCode code) {
 #if __linux__
@@ -146,37 +131,6 @@ inline Stream& operator<<(Stream& stream, BashCode code) {
 #endif // #if __linux__
     return stream;
 }
-
-} // namespace pre
-
-template <typename Char>
-struct std::formatter<pre::BashCode, Char> {
-    template <typename ParseContext>
-    auto parse(ParseContext& pc) {
-        return pc.end();
-    }
-
-    template <typename FormatContext>
-    auto format(pre::BashCode code, FormatContext& fc) {
-#if __linux__
-        switch (code) {
-        case pre::BashCode::Error:
-            return std::format_to(
-                    fc.out(), "\e[{}m\e[{}m", //
-                    int(pre::BashCode::Bold), int(pre::BashCode::FgRed));
-        case pre::BashCode::ResetError:
-            return std::format_to(
-                    fc.out(), "\e[{}m\e[{}m", //
-                    int(pre::BashCode::FgDefault),
-                    int(pre::BashCode::ResetBoldDim));
-        default: return std::format_to(fc.out(), "\e[{}m", int(code));
-        }
-#endif // #if __linux__
-        return fc.out();
-    }
-};
-
-namespace pre {
 
 /// Terminal size.
 struct TerminalSize {
@@ -202,30 +156,18 @@ struct TerminalSize {
 
 /// A terminal progress bar.
 struct TerminalProgressBar {
-  public:
-    TerminalProgressBar() noexcept = default;
-
-    TerminalProgressBar(double amt) noexcept : amount(amt) {
-    }
-
     double amount = 0.0;
 
-    /// Write into `std::basic_ostream`.
     template <concepts::ostream Stream>
     friend Stream& operator<<(Stream& stream, TerminalProgressBar bar) {
-        // Print bracket.
         stream << '[';
-        // Terminal size.
         TerminalSize size = TerminalSize::get();
         if (size.cols < 8)
             size = {24, 80}; // Error?
-        // Amount.
         double amount = bar.amount;
         amount = std::max(0.0, amount);
         amount = std::min(1.0, amount);
-        // Columns.
         int columns = size.cols - 2;
-        // Message.
         char message[8];
         message[0] = '%';
         message[2] = '.';
@@ -250,22 +192,114 @@ struct TerminalProgressBar {
             }
         }
         *messageitr = '\0';
-        // Reverse.
         std::reverse(message, messageitr);
-        // Print message.
         stream << message;
-        // Print progress.
         int column0 = messageitr - message;
         int column1 = std::max(column0, int(columns * amount));
         for (; column0 < column1; column0++)
             stream << '#';
         for (; column1 < columns; column1++)
             stream << '.';
-        // Print bracket.
         stream << ']';
         return stream;
     }
 };
+
+/// Is option name?
+///
+/// An option name string is `/^--?[a-zA-Z](?:-?[a-zA-Z0-9]+)*$/`.
+///
+inline bool is_option_name(std::string_view str) noexcept {
+    auto pos = str.begin();
+    if (pos == str.end() or *pos != '-')
+        return false;
+    ++pos;
+    if (*pos == '-')
+        ++pos;
+    if (std::isalpha(static_cast<unsigned char>(*pos)) == false)
+        return false;
+    ++pos;
+    auto tmp = pos;
+    while (true) {
+        if (*tmp == '-')
+            ++tmp;
+        if (std::isalnum(static_cast<unsigned char>(*tmp)) == false)
+            break;
+        pos = ++tmp;
+    }
+    return pos == str.end();
+}
+
+template <typename Arg>
+inline consteval const char* argv_type() noexcept {
+    if constexpr (std::unsigned_integral<Arg>)
+        return "uint";
+    else if constexpr (std::integral<Arg>)
+        return "int";
+    else if constexpr (std::floating_point<Arg>)
+        return "float";
+    else
+        return "string";
+}
+
+template <typename Arg>
+inline Arg argv_cast(char* argv) {
+    static_assert(
+            concepts::arithmetic<Arg> or      //
+            std::same_as<Arg, char*> or       //
+            std::same_as<Arg, const char*> or //
+            std::same_as<Arg, std::string> or //
+            std::same_as<Arg, std::string_view>);
+    // Is arithmetic?
+    if constexpr (concepts::arithmetic<Arg>) {
+        // Try to convert from string.
+        Arg arg = Arg();
+        size_t pos = 0;
+        if constexpr (std::same_as<Arg, int>)
+            arg = std::stoi(argv, &pos);
+        else if constexpr (std::same_as<Arg, long>)
+            arg = std::stol(argv, &pos);
+        else if constexpr (std::same_as<Arg, long long>)
+            arg = std::stoll(argv, &pos);
+        else if constexpr (
+                std::same_as<Arg, unsigned long> or
+                std::same_as<Arg, unsigned>)
+            arg = std::stoul(argv, &pos);
+        else if constexpr (std::same_as<Arg, unsigned long long>)
+            arg = std::stoull(argv, &pos);
+        else if constexpr (std::same_as<Arg, float>)
+            arg = std::stof(argv, &pos);
+        else if constexpr (std::same_as<Arg, double>)
+            arg = std::stod(argv, &pos);
+        else if constexpr (std::same_as<Arg, long double>)
+            arg = std::stold(argv, &pos);
+        else if constexpr (
+                std::same_as<Arg, char> or //
+                std::same_as<Arg, unsigned char>)
+            arg = argv[pos++];
+        else if constexpr (std::same_as<Arg, bool>) {
+            std::string_view sv(argv);
+            if (sv == "false" or sv == "0") {
+                arg = false;
+                pos = sv.size();
+            }
+            if (sv == "true" or sv == "1") {
+                arg = true;
+                pos = sv.size();
+            }
+        }
+        else {
+            // TODO
+        }
+        if (pos != std::string_view(argv).size())
+            throw std::invalid_argument(__func__);
+        return arg;
+    }
+    else {
+        // Just return the pointer.
+        return argv;
+    }
+}
 
 /// An option parser.
 ///
@@ -280,49 +314,43 @@ struct TerminalProgressBar {
 ///
 class OptionParser {
   public:
-    OptionParser(const char* prog_usage) : prog_usage_(prog_usage) {
+    OptionParser(const char* usage) : program_usage_(usage) {
         groups_.emplace_back();
         on_option("-h/--help", [&] { // Default help option.
-            std::cout << *this;
+            std::cout << *this << std::endl;
             std::exit(EXIT_SUCCESS);
         }) = "Display this help and exit.";
     }
+    OptionParser(const OptionParser&) = delete;
 
   public:
-    /// Set group.
     std::string& in_group(const char* name) {
         for (auto itr = groups_.begin(); itr != groups_.end(); ++itr) {
-            if ((itr->name.empty() && !name) || itr->name == name) {
+            if ((itr->name.empty() and not name) or itr->name == name) {
                 groups_.splice(groups_.end(), groups_, itr);
-                return groups_.back().help;
+                return groups_.back().help_string;
             }
         }
         groups_.emplace_back();
         groups_.back().name = name;
-        return groups_.back().help;
+        return groups_.back().help_string;
     }
 
-    /// Set begin callback.
-    void on_begin(const std::function<void()>& callback) {
-        groups_.back().on_begin = callback;
+    void on_begin(const std::function<void()>& call) {
+        groups_.back().on_begin = call;
     }
 
-    /// Set end callback.
-    void on_end(const std::function<void()>& callback) {
-        groups_.back().on_end = callback;
+    void on_end(const std::function<void()>& call) {
+        groups_.back().on_end = call;
     }
 
-    /// Add option callback.
     template <typename Call>
     std::string& on_option(const char* name, Call&& call) {
-        groups_.back().options.emplace_back();
-        Option& option = groups_.back().options.back();
-        option.init_name(name);
-        option.init_callback(std::forward<Call>(call));
-        return option.help;
+        Option& option = groups_.back().options.emplace_back();
+        option.init(name, std::forward<Call>(call));
+        return option.help_string;
     }
 
-    /// Add option, automatic interpolation variant.
     template <typename Arg, typename... Args>
     std::string& on_option(const char* name, Arg* arg, Args*... args) {
         return on_option(name, [=](Arg arg_, Args... args_) {
@@ -330,39 +358,29 @@ class OptionParser {
         });
     }
 
-    /// Add option, flag variant.
     std::string& on_option(const char* name, bool* flag) {
         return on_option(name, [=]() { *flag = true; });
     }
 
-    /// Set positional callback.
-    void on_positional(const std::function<void(std::string_view)>& callback) {
-        groups_.back().on_positional = callback;
+    void on_positional(const std::function<void(std::string_view)>& call) {
+        groups_.back().on_positional = call;
     }
 
   public:
     /// Parse.
     ///
-    /// \param[in] argc  Argument count.
-    /// \param[in] argv  Argument pointer.
-    ///
     /// \throw std::runtime_error
     /// If unknown option or improper use of option.
     ///
     void parse(int argc, char** argv) {
-        assert(argc > 0);
-        assert(argv);
-
-        // Program name.
-        prog_name_ = *argv;
+        ASSERT(argc > 0);
+        ASSERT(argv);
+        program_name_ = *argv;
         --argc;
         ++argv;
-
-        std::list<OptionGroup>::iterator group_itr = groups_.begin();
-        // On begin.
-        if (group_itr->on_begin)
-            group_itr->on_begin();
-
+        auto group = groups_.begin();
+        if (group->on_begin)
+            group->on_begin();
         while (argc > 0) {
             // Look for '=', if present, truncate *argv.
             char* eq = nullptr;
@@ -371,81 +389,63 @@ class OptionParser {
                 eq = *argv + eq_pos;
                 *eq = '\0';
             }
-            // Is option name?
-            if (is_option_name_(*argv)) {
-                // Process.
+            if (is_option_name(*argv)) {
                 bool option_ok = false;
-                for (Option& option : group_itr->options) {
-                    if (option.name[0] == *argv || option.name[1] == *argv) {
-                        if (eq) {
+                for (Option& option : group->options) {
+                    if (option.names[0] == *argv or //
+                        option.names[1] == *argv) {
+                        if (eq)
                             *argv = eq + 1; // Shift.
-                        }
                         else {
-                            // Consume.
                             --argc;
                             ++argv;
                         }
                         // Not enough args? or no args and eq?
-                        if (option.argc > argc || (option.argc == 0 && eq))
-                            throw std::runtime_error(std::format(
-                                    "{} expects {}{}{}", option.nice_name(),
-                                    BashCode::FgLightBlue,
-                                    option.argv_signature,
+                        if (option.argc > argc or (option.argc == 0 and eq))
+                            throw std::runtime_error(to_string(
+                                    option.nice_name(), " expects ",
+                                    BashCode::FgLightBlue, option.types,
                                     BashCode::FgDefault));
-                        // Delegate.
                         option.on_option(argv);
                         option_ok = true;
-                        // Consume.
                         argc -= option.argc;
                         argv += option.argc;
                         break;
                     }
                 }
-
-                // Unknown option?
-                if (!option_ok)
-                    throw std::runtime_error(std::format(
-                            "Unknown option {}{}{}", BashCode::Error, *argv,
-                            BashCode::ResetError));
+                if (not option_ok)
+                    throw std::runtime_error(to_string(
+                            BashCode::Error, *argv, BashCode::ResetError));
             }
             else {
-                // Undo truncate.
-                if (eq) {
-                    *eq = '=';
-                }
-                // Find group?
-                bool group_itr_found = false;
+                if (eq)
+                    *eq = '='; // Undo truncate.
+                bool group_found = false;
                 for (auto itr = groups_.begin(); itr != groups_.end(); ++itr) {
                     if (itr->name == *argv) {
-                        // On end.
-                        if (group_itr->on_end)
-                            group_itr->on_end();
-                        group_itr_found = true;
-                        group_itr = itr;
-                        // On begin.
-                        if (group_itr->on_begin)
-                            group_itr->on_begin();
+                        if (group->on_end)
+                            group->on_end();
+                        group_found = true;
+                        group = itr;
+                        if (group->on_begin)
+                            group->on_begin();
                         break;
                     }
                 }
-
-                if (!group_itr_found) {
-                    // Positional.
-                    if (group_itr->on_positional)
-                        group_itr->on_positional(std::string_view(*argv));
+                if (not group_found) {
+                    if (group->on_positional)
+                        group->on_positional(std::string_view(*argv));
                     else
-                        throw std::runtime_error(std::format(
-                                "Unexpected positional argument {}{}{}",
+                        throw std::runtime_error(to_string(
+                                "Unexpected positional argument ",
                                 BashCode::Error, *argv, BashCode::ResetError));
                 }
-                // Consume.
                 --argc;
                 ++argv;
             }
         }
-        // End.
-        if (group_itr->on_end)
-            group_itr->on_end();
+        if (group->on_end)
+            group->on_end();
     }
 
     void parse_or_exit(int argc, char** argv) {
@@ -458,213 +458,108 @@ class OptionParser {
         }
     }
 
-  private:
-    /// Is option name?
-    ///
-    /// An option name string is `/^--?[a-zA-Z](?:-?[a-zA-Z0-9]+)*$/`.
-    ///
-    static bool is_option_name_(const char* str) noexcept {
-        std::locale loc;
-        // --?
-        if (!str || *str != '-')
-            return false;
-        str++;
-        if (*str == '-')
-            str++;
-        // [a-zA-Z]
-        if (!std::isalpha(*str, loc))
-            return false;
-        str++;
-        // (?:-?[a-zA-Z0-9]+)*
-        for (const char* tmp = str; true; str = tmp) {
-            // -?
-            if (*tmp == '-')
-                tmp++;
-            // [a-zA-Z0-9]
-            if (!std::isalnum(*tmp, loc))
-                break;
-            tmp++;
-        }
-        return *str == '\0';
-    }
-
-    template <typename Arg>
-    static consteval const char* argv_signature_() {
-        if constexpr (std::unsigned_integral<Arg>)
-            return "uint";
-        else if constexpr (std::integral<Arg>)
-            return "int";
-        else if constexpr (std::floating_point<Arg>)
-            return "float";
-        else
-            return "string";
-    }
-
-    template <typename Arg>
-    static Arg argv_cast_(char* argv) {
-        static_assert(
-                concepts::arithmetic<Arg> ||      //
-                std::same_as<Arg, char*> ||       //
-                std::same_as<Arg, const char*> || //
-                std::same_as<Arg, std::string> || //
-                std::same_as<Arg, std::string_view>);
-        // Is arithmetic?
-        if constexpr (concepts::arithmetic<Arg>) {
-            // Try to convert from string.
-            Arg arg = Arg();
-            size_t pos = 0;
-            if constexpr (std::same_as<Arg, int>)
-                arg = std::stoi(argv, &pos);
-            else if constexpr (std::same_as<Arg, long>)
-                arg = std::stol(argv, &pos);
-            else if constexpr (std::same_as<Arg, long long>)
-                arg = std::stoll(argv, &pos);
-            else if constexpr (
-                    std::same_as<Arg, unsigned long> ||
-                    std::same_as<Arg, unsigned>)
-                arg = std::stoul(argv, &pos);
-            else if constexpr (std::same_as<Arg, unsigned long long>)
-                arg = std::stoull(argv, &pos);
-            else if constexpr (std::same_as<Arg, float>)
-                arg = std::stof(argv, &pos);
-            else if constexpr (std::same_as<Arg, double>)
-                arg = std::stod(argv, &pos);
-            else if constexpr (std::same_as<Arg, long double>)
-                arg = std::stold(argv, &pos);
-            else {
-                // TODO
-            }
-            if (pos != std::string_view(argv).size())
-                throw std::invalid_argument(__func__);
-            return arg;
-        }
-        else {
-            // Just return the pointer.
-            return argv;
-        }
-    }
-
-    /// An option.
-    class Option {
-      public:
-        std::string_view name[2] = {};
-
-        /// Nice name with text styling.
-        std::string nice_name() const {
-            if (name[1].empty())
-                return std::format(
-                        "{}{}{}", BashCode::Bold, name[0],
-                        BashCode::ResetBoldDim);
-            else
-                return std::format(
-                        "{}{}{}{}/{}{}{}{}", BashCode::Bold, name[0],
-                        BashCode::ResetBoldDim, BashCode::Dim,
-                        BashCode::ResetBoldDim, BashCode::Bold, name[1],
-                        BashCode::ResetBoldDim);
-        }
-
+  public:
+    struct Option {
         int argc = 0;
-        std::string argv_signature;
-        std::function<void(char**)> on_option;
-        std::string help;
-
-      public:
-        void init_name(const char* name_) {
-            name[0] = name_;
-            auto pos = name[0].find('/');
-            if (pos != name[0].npos) {
-                name[1] = name[0].substr(pos + 1);
-                name[0] = name[0].substr(0, pos);
-            }
+        std::string_view names[2];
+        std::string nice_name() const {
+            if (names[1].empty())
+                return to_string(
+                        BashCode::Bold, names[0], BashCode::ResetBoldDim);
+            else
+                return to_string(
+                        BashCode::Bold, names[0], BashCode::ResetBoldDim,
+                        BashCode::Dim, '/', BashCode::ResetBoldDim,
+                        BashCode::Bold, names[1], BashCode::ResetBoldDim);
         }
+        std::string types;
+        std::function<void(char**)> on_option;
+        std::string help_string;
 
+      private:
         template <typename Call>
-        void init_callback(Call&& call) {
-            // Delegate with callable indexed type list.
+        void init(const char* name, Call&& call) {
+            names[0] = name;
+            auto pos = names[0].find('/');
+            if (pos != names[0].npos) {
+                names[1] = names[0].substr(pos + 1);
+                names[0] = names[0].substr(0, pos);
+            }
             init_callback(
                     std::forward<Call>(call),
                     callable_indexed_type_list_t<Call>{});
         }
-
         template <typename Call, typename... Args>
         void init_callback(Call&& call, type_list<Args...>) {
-            // Init argument count.
             argc = sizeof...(Args);
-            // Init argument signature.
-            const char* argv_signatures[] = {
-                    argv_signature_<std::decay_t<typename Args::type>>()...};
             if (argc > 0) {
-                argv_signature = argv_signatures[0];
-                for (auto itr = &argv_signatures[0] + 1;
-                     itr < &argv_signatures[0] + argc; itr++) {
-                    argv_signature += ' ';
-                    argv_signature += *itr;
+                constexpr const char* argv_types[] = {
+                        argv_type<std::decay_t<typename Args::type>>()...};
+                types = argv_types[0];
+                for (auto itr = &argv_types[0] + 1;
+                     itr < &argv_types[0] + argc; itr++) {
+                    types += ' ';
+                    types += *itr;
                 }
             }
-            // Init callback.
             on_option = [&, call](char** argv) {
-                (void)argv; // Suppress warning if no arguments.
                 try {
-                    // Delegate to call after argument cast.
-                    call(argv_cast_<std::decay_t<typename Args::type>>(
+                    (void)argv;
+                    call(argv_cast<std::decay_t<typename Args::type>>(
                             argv[Args::index])...);
                 }
                 catch (const std::exception&) {
                     // If an argument cast throws, intercept
                     // it and rethrow with a better error message.
-                    throw std::runtime_error(std::format(
-                            "{} expects {}{}{}", nice_name(),
-                            BashCode::FgLightBlue, argv_signature,
+                    throw std::runtime_error(to_string(
+                            nice_name(), " expects ", //
+                            BashCode::FgLightBlue, types,
                             BashCode::FgDefault));
                 }
             };
         }
+        friend class OptionParser;
     };
-
-    /// An option group.
-    class OptionGroup {
-      public:
+    struct OptionGroup {
         std::string_view name = {};
-
-        /// Nice name with text styling.
         std::string nice_name() const {
             if (name.empty())
                 return {};
             else
-                return std::format(
-                        "{}{}{}", BashCode::Underline, name,
-                        BashCode::ResetUnderline);
+                return to_string(
+                        BashCode::Underline, name, BashCode::ResetUnderline);
         }
-
         std::list<Option> options;
         std::function<void()> on_begin;
         std::function<void()> on_end;
         std::function<void(std::string_view)> on_positional;
-        std::string help;
+        std::string help_string;
     };
 
+  private:
+    const char* program_name_ = nullptr;  ///< Program name (from `argv[0]`).
+    const char* program_usage_ = nullptr; ///< Program usage line.
+    std::list<OptionGroup> groups_;
+
   public:
-    /// Write help to `std::basic_ostream`.
     template <concepts::ostream Stream>
     friend Stream& operator<<(Stream& stream, OptionParser& parser) {
-        stream << std::format(
-                "Usage: {} {}\n\n", //
-                parser.prog_name_,  //
-                parser.prog_usage_);
+        stream << "Usage: ";
+        stream << parser.program_name_ << ' ';
+        stream << parser.program_usage_ << "\n\n";
         for (OptionGroup& group : parser.groups_) {
             if (group.name.size() > 0) {
                 stream << group.nice_name() << '\n';
-                stream << group.help << '\n';
+                stream << group.help_string << '\n';
             }
             for (Option& option : group.options) {
-                stream << std::format(
-                        "{} {}{}{}", //
-                        option.nice_name(), BashCode::FgLightBlue,
-                        option.argv_signature, BashCode::FgDefault);
-                if (!option.help.empty()) {
+                stream << option.nice_name() << ' ';
+                stream << BashCode::FgLightBlue << option.types
+                       << BashCode::FgDefault;
+                if (not option.help_string.empty()) {
                     stream << '\n';
                     stream << '\t';
-                    for (char ch : option.help) {
+                    for (char ch : option.help_string) {
                         stream << ch;
                         if (ch == '\n')
                             stream << '\t';
@@ -676,12 +571,14 @@ class OptionParser {
         }
         return stream;
     }
-
-  private:
-    const char* prog_name_ = nullptr;  ///< Program name (from `argv[0]`).
-    const char* prog_usage_ = nullptr; ///< Program usage line.
-    std::list<OptionGroup> groups_;    ///< Option groups.
 };
+
+#if 0
+
+class OptionParser {
+  public:
+};
+#endif
 
 } // namespace pre
 
