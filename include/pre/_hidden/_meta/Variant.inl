@@ -76,6 +76,10 @@ class Variant {
     constexpr operator const std::variant<Types...>&() const noexcept {
         return var_;
     }
+  public:
+    void serialize(auto& serializer) {
+        serializer <=> var_;
+    }
 
   private:
     std::variant<Types...> var_;
