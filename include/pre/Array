@@ -79,6 +79,8 @@ concept not_array = !is_array<T>::value;
 
 #include "_hidden/_Array/View.inl"
 
+#include "_hidden/_Array/Nd.inl"
+
 namespace pre {
 
 template <typename T, size_t... N>
@@ -539,6 +541,7 @@ struct Array<Entry, M, N...> : Array_initializers<Array<Entry, M, N...>> {
 
     /** \} */
 
+  public:
     constexpr bool any() const noexcept {
         for (const auto& each : *this) {
             if constexpr (Rank > 1) {
@@ -584,9 +587,10 @@ struct Array<Entry, M, N...> : Array_initializers<Array<Entry, M, N...>> {
         return arr;
     }
 
-  public:
-    /// Smart alignment, to promote vectorization by the compiler.
-    static constexpr size_t alignment() noexcept {
+  public :
+      /// Smart alignment, to promote vectorization by the compiler.
+      static constexpr size_t
+      alignment() noexcept {
         size_t align = sizeof(value_type[M]);
         if (align & (align - 1))
             return std::alignment_of<value_type>::value;
