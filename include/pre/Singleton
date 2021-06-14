@@ -31,44 +31,66 @@
 #error "Precept requires >= C++20"
 #endif // #if !(__cplusplus >= 201709L)
 #pragma once
-#ifndef PRE_DESIGN_PATTERNS_PREPARABLE
-#define PRE_DESIGN_PATTERNS_PREPARABLE
+#ifndef PRE_SINGLETON
+#define PRE_SINGLETON
+
+// for std::logic_error
+#include <stdexcept>
 
 namespace pre {
 
-/// A preparable object.
-template <typename... Args>
-class Preparable {
+/// A singleton interface.
+template <typename Subclass, bool AutoBootup = true>
+class Singleton {
   public:
-    virtual ~Preparable() = default;
-
-    /// Prepare.
-    void prepare(Args... args) {
-        if (is_prepared_ == false) {
-            is_prepared_ = true;
-            on_prepare(args...);
+    /// Bootup.
+    static void bootup() {
+        if (instance_ == nullptr) {
+            instance_ = new Subclass();
+            instance_->on_bootup();
         }
     }
 
-    /// Unprepare, to undo anything done by `prepare()`.
-    void unprepare() {
-        if (is_prepared_ == true) {
-            is_prepared_ = false;
-            on_unprepare();
+    /// Shutdown.
+    static void shutdown() {
+        if (instance_) {
+            instance_->on_shutdown();
+            delete instance_, instance_ = nullptr;
         }
+    }
+
+    /// Get instance.
+    ///
+    /// \throw std::logic_error
+    /// If `bootup()` has not yet been called and `AutoBootup` is false.
+    ///
+    static Subclass& get() {
+        if (instance_ == nullptr) {
+            if constexpr (AutoBootup)
+                bootup();
+            else
+                throw std::logic_error("tried to get uninitialized singleton");
+        }
+        return static_cast<Subclass&>(*instance_);
     }
 
   protected:
-    /// On-prepare handler.
-    virtual void on_prepare(Args... args) = 0;
+    Singleton() = default;
 
-    /// On-unprepare handler, to undo anything done by `on_prepare()`.
-    virtual void on_unprepare() = 0;
+    Singleton(const Singleton&) = delete;
+
+    virtual ~Singleton() = default;
+
+    /// On-bootup.
+    virtual void on_bootup() = 0;
+
+    /// On-shutdown.
+    virtual void on_shutdown() = 0;
 
   private:
-    bool is_prepared_ = false;
+    static inline Singleton* instance_ = nullptr;
 };
 
 } // namespace pre
 
-#endif // #ifndef PRE_DESIGN_PATTERNS_PREPARABLE
+#endif // #ifndef PRE_SINGLETON

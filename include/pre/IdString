@@ -31,8 +31,8 @@
 #error "Precept requires >= C++20"
 #endif // #if !(__cplusplus >= 201709L)
 #pragma once
-#ifndef PRE_DESIGN_PATTERNS_ID_STRING
-#define PRE_DESIGN_PATTERNS_ID_STRING
+#ifndef PRE_ID_STRING
+#define PRE_ID_STRING
 
 // for pre::Pcg32
 #include <pre/random>
@@ -103,4 +103,4 @@ constexpr IdString operator""_id(const char* str, size_t) {
 
 } // namespace pre
 
-#endif // #ifndef PRE_DESIGN_PATTERNS_ID_STRING
+#endif // #ifndef PRE_ID_STRING

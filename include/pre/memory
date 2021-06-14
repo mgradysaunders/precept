@@ -60,6 +60,10 @@
 
 #include "_hidden/_memory/HeapStack.inl"
 
+#include "_hidden/_memory/RefCountable.inl"
+
+#include "_hidden/_memory/RefPtr.inl"
+
 #include "_hidden/_memory/StaticQueue.inl"
 
 #include "_hidden/_memory/StaticStack.inl"
