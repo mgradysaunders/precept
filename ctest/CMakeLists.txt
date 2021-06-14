@@ -9,9 +9,8 @@ add_executable(
     tests/linalg.cpp
     tests/math.cpp
     tests/meta.cpp
-    tests/Preparable.cpp
     tests/RefPtr.cpp
-    tests/Serializable.cpp
+    tests/Serializer.cpp
     tests/StaticQueue.cpp
     tests/StaticStack.cpp
     tests/Timer.cpp

@@ -1,8 +1,8 @@
 #include "../doctest.h"
 #include <pre/random>
-#include <pre/design_patterns/RefPtr>
+#include <pre/memory>
 
-TEST_CASE("RefCountable") {
+TEST_CASE("RefPtr") {
     // Call counters
     static int Foo_ctor_calls = 0;
     static int Foo_dtor_calls = 0;

@@ -1,8 +1,8 @@
 #include "../doctest.h"
 #include <sstream>
 #include <pre/BoundBox>
-#include <pre/design_patterns/IdString>
-#include <pre/design_patterns/Serializable>
+#include <pre/IdString>
+#include <pre/Serializer>
 
 static int Serial_ctor_calls = 0;
 static int Serial_dtor_calls = 0;
@@ -49,7 +49,7 @@ class SerialLeaf final : public Serial {
     pre::BoundBox3<double> box;
 };
 
-TEST_CASE("Serializable") {
+TEST_CASE("Serializer") {
     std::stringstream ss;
     {
         pre::RefPtr branch1(new SerialBranch());
