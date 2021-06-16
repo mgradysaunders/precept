@@ -31,8 +31,8 @@
 #error "Precept requires >= C++20"
 #endif // #if !(__cplusplus >= 201709L)
 #pragma once
-#ifndef PRE_SIMPLEX_NOISE
-#define PRE_SIMPLEX_NOISE
+#ifndef PRE_GRAPHICS_SIMPLEX_NOISE
+#define PRE_GRAPHICS_SIMPLEX_NOISE
 
 #include <pre/Array>
 #include <pre/random>
@@ -147,4 +147,4 @@ using SimplexNoise4 = SimplexNoise<Float, 4>;
 
 } // namespace pre
 
-#endif // #ifndef PRE_SIMPLEX_NOISE
+#endif // #ifndef PRE_GRAPHICS_SIMPLEX_NOISE
