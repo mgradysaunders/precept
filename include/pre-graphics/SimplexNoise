@@ -31,8 +31,8 @@
 #error "Precept requires >= C++20"
 #endif // #if !(__cplusplus >= 201709L)
 #pragma once
-#ifndef PRE_NOISE
-#define PRE_NOISE
+#ifndef PRE_SIMPLEX_NOISE
+#define PRE_SIMPLEX_NOISE
 
 #include <pre/Array>
 #include <pre/random>
@@ -41,7 +41,7 @@ namespace pre {
 
 /// A simplex noise generator.
 template <std::floating_point Float, size_t N>
-struct Noise {
+struct SimplexNoise {
     static_assert(N <= 16, "Probably not robust beyond 16 dimensions!");
 
   public:
@@ -134,17 +134,17 @@ struct Noise {
 };
 
 template <std::floating_point Float>
-using Noise1 = Noise<Float, 1>;
+using SimplexNoise1 = SimplexNoise<Float, 1>;
 
 template <std::floating_point Float>
-using Noise2 = Noise<Float, 2>;
+using SimplexNoise2 = SimplexNoise<Float, 2>;
 
 template <std::floating_point Float>
-using Noise3 = Noise<Float, 3>;
+using SimplexNoise3 = SimplexNoise<Float, 3>;
 
 template <std::floating_point Float>
-using Noise4 = Noise<Float, 4>;
+using SimplexNoise4 = SimplexNoise<Float, 4>;
 
 } // namespace pre
 
-#endif // #ifndef PRE_NOISE
+#endif // #ifndef PRE_SIMPLEX_NOISE

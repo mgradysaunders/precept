@@ -1,0 +1,411 @@
+/*-*- C++ -*-*/
+/* Copyright (c) 2018-21 M. Grady Saunders
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
+ * are met:
+ *
+ *   1. Redistributions of source code must retain the above
+ *      copyright notice, this list of conditions and the following
+ *      disclaimer.
+ *
+ *   2. Redistributions in binary form must reproduce the above
+ *      copyright notice, this list of conditions and the following
+ *      disclaimer in the documentation and/or other materials
+ *      provided with the distribution.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED
+ * TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
+ * PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR
+ * CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
+ * EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
+ * PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
+ * PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY
+ * OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+ * NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+ * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
+/*-*-*-*-*-*-*/
+#if !(__cplusplus >= 201709L)
+#error "Precept requires >= C++20"
+#endif // #if !(__cplusplus >= 201709L)
+#pragma once
+#ifndef PRE_GRAPHICS_KDTREE
+#define PRE_GRAPHICS_KDTREE
+
+#include <pre-graphics/BoundBox>
+
+#include "_hidden/NodeIterator.inl"
+
+#include "_hidden/NodeStack.inl"
+
+namespace pre {
+
+template <
+        typename Value,
+        typename Alloc,
+        std::floating_point Float,
+        size_t Dim>
+class KdTree {
+    static_assert(Dim == 2 or Dim == 3);
+
+  public:
+    using Point = Array<Float, Dim>;
+
+    using Box = BoundBox<Float, Dim>;
+
+    typedef size_t size_type;
+
+    typedef std::ptrdiff_t difference_type;
+
+    typedef std::pair<const Point, Value> value_type;
+
+    typedef value_type& reference;
+
+    typedef value_type* pointer;
+
+    typedef const value_type& const_reference;
+
+    typedef const value_type* const_pointer;
+
+    struct Node {
+        Node() = default;
+
+        template <typename... Args>
+        Node(Args&&... args) : value(std::forward<Args>(args)...) {
+        }
+
+        Node* next = nullptr;
+
+        Node* left = nullptr;
+
+        Node* right = nullptr;
+
+        int axis = 0;
+
+        std::optional<value_type> value = std::nullopt;
+    };
+
+    struct NodeTraits {
+        using Node = typename KdTree::Node;
+
+        static constexpr value_type& value(Node* node) noexcept {
+            return node->value.operator*();
+        }
+        static constexpr bool has_value(Node* node) noexcept {
+            return node->value.has_value();
+        }
+    };
+
+    typedef tree_helpers::NodeIterator<NodeTraits, 0> iterator;
+
+    typedef tree_helpers::NodeIterator<NodeTraits, 1> const_iterator;
+
+    using NodePool = ObjectHeapPool<Node, Alloc>;
+
+  public:
+    KdTree(size_t pool_size = 32768 / sizeof(Node), const Alloc& alloc = {})
+        : pool_(pool_size, alloc) {
+    }
+
+    KdTree(const KdTree&) = delete;
+
+    KdTree(KdTree&& other)
+        : pool_(std::move(other.pool_)),           //
+          root_(steal(other.root_)),               //
+          head_(steal(other.head_)),               //
+          size_(steal(other.size_)),               //
+          size_erased_(steal(other.size_erased_)), //
+          depth_(steal(other.depth_)) {
+    }
+
+    ~KdTree() {
+        clear();
+    }
+
+    KdTree& operator=(const KdTree&) = delete;
+
+    KdTree& operator=(KdTree&& other) {
+        clear();
+        pool_ = std::move(other.pool_);
+        root_ = steal(other.root_);
+        head_ = steal(other.head_);
+        size_ = steal(other.size_);
+        size_erased_ = steal(other.size_erased_);
+        depth_ = steal(other.depth_);
+        return *this;
+    }
+
+  public:
+    size_t size() const noexcept {
+        return size_;
+    }
+
+    bool empty() const noexcept {
+        return size_ == 0;
+    }
+
+    iterator begin() noexcept {
+        return head_;
+    }
+
+    const_iterator begin() const noexcept {
+        return head_;
+    }
+
+    const_iterator cbegin() const noexcept {
+        return begin(); // Force const
+    }
+
+    iterator end() noexcept {
+        return nullptr;
+    }
+
+    const_iterator end() const noexcept {
+        return nullptr;
+    }
+
+    const_iterator cend() const noexcept {
+        return end(); // Force const
+    }
+
+  public:
+    iterator insert(const Point& point, const Value& value) {
+        Node* node = pool_.create(point, value);
+        if (root_ == nullptr) {
+            root_ = node;
+            head_ = node;
+        }
+        else {
+            do_insert(root_, node);
+            node->next = head_;
+            head_ = node;
+        }
+        size_++;
+        return node;
+    }
+
+    iterator erase(const_iterator pos) noexcept {
+        Node* node = const_cast<Node*>(pos.node);
+        ASSERT(node);
+        ASSERT(node->value);
+        node->value.reset();
+        size_--;
+        size_erased_++;
+        return node->next;
+    }
+
+    const Node* root() const noexcept {
+        return root_;
+    }
+
+    size_t depth() const noexcept {
+        return depth_;
+    }
+
+    size_t optimal_depth() const noexcept {
+        return first1(roundpow2(size_));
+    }
+
+    bool should_rebalance() const noexcept {
+        return depth() > 2 * optimal_depth() || size_erased_ > size_;
+    }
+
+    void rebalance() {
+        if (!empty()) {
+            std::vector<Node*> nodes;
+            nodes.reserve(size_);
+            // aabb_ = {};
+            for (Node* node = head_; node;) {
+                if (not node->value) {
+                    Node* next = node->next;
+                    pool_.deallocate(node);
+                    node = next;
+                }
+                else {
+                    // aabb_ |= node->value.first;
+                    nodes.emplace_back(node);
+                    node = node->next;
+                }
+            }
+            depth_ = size_erased_ = 0;
+            root_ = do_rebalance({nodes.data(), nodes.data() + nodes.size()});
+            head_ = nodes[0];
+            for (auto itr = nodes.begin(); itr + 1 < nodes.end(); ++itr)
+                (*itr)->next = *(itr + 1);
+        }
+    }
+
+    void rebalance_if_necessary() {
+        if (should_rebalance())
+            rebalance();
+    }
+
+    void clear() {
+        if constexpr (!std::is_trivially_destructible_v<Value>)
+            for (auto& value : *this)
+                value.second.~Value();
+        pool_.reset();
+        root_ = head_ = nullptr;
+        size_ = size_erased_ = depth_ = 0;
+    }
+
+  public:
+    template <typename Func>
+    void traverse(Point point, Float radius, Func&& func) const {
+        if (depth_ < 64)
+            do_traverse<0>(point, radius, std::forward<Func>(func));
+        else
+            do_traverse<1>(point, radius, std::forward<Func>(func));
+    }
+
+    int erase_nearby(Point point, Float radius) {
+        int count = 0;
+        traverse(point, radius, [&](auto pos) {
+            count++;
+            erase(pos);
+            return true; // Keep going.
+        });
+        return count;
+    }
+
+    int count_nearby(Point point, Float radius) const {
+        int count = 0;
+        traverse(point, radius, [&](auto) {
+            count++;
+            return true; // Keep going.
+        });
+        return count;
+    }
+
+    bool any_nearby(Point point, Float radius) const {
+        bool flag = false;
+        traverse(point, radius, [&](auto) {
+            flag = true;
+            return false; // Stop
+        });
+        return flag;
+    }
+
+    iterator nearest(Point point) const {
+        return depth_ < 64 ? do_nearest<0>(point) : do_nearest<1>(point);
+    }
+
+  private:
+    NodePool pool_;
+
+    Node* root_ = nullptr;
+
+    Node* head_ = nullptr;
+
+    size_t size_ = 0;
+
+    size_t size_erased_ = 0;
+
+    size_t depth_ = 0;
+
+  private:
+    void do_insert(Node*& node, Node* leaf, size_t depth = 0) {
+        Node*& child = (leaf->value->first[node->axis] < //
+                        node->value->first[node->axis])
+                               ? node->left
+                               : node->right;
+        if (child == nullptr) {
+            child = leaf;
+            leaf->axis = (node->axis + 1) % Dim;
+            if (depth_ < depth)
+                depth_ = depth;
+        }
+        else
+            insert_(child, leaf, depth + 1);
+    }
+
+    Node* do_rebalance(IteratorRange<Node**> nodes, size_t depth = 0) {
+        if (nodes.size() == 0) {
+            return nullptr;
+        }
+        else if (nodes.size() == 1) {
+            Node* node = nodes[0];
+            node->next = nullptr;
+            node->left = nullptr;
+            node->right = nullptr;
+            node->axis = 0;
+            if (depth_ < depth)
+                depth_ = depth;
+            return node;
+        }
+        else {
+            Box box;
+            for (const Node* node : nodes)
+                box |= node->value.first;
+            auto axis = box.extent().argmax();
+            auto middle = nodes.begin() + nodes.size() / 2;
+            std::nth_element(
+                    nodes.begin(), middle, nodes.end(),
+                    [=](const Node* node0, const Node* node1) {
+                        return node0->value->first[axis] <
+                               node1->value->first[axis];
+                    });
+            (*middle)->next = nullptr;
+            (*middle)->axis = axis;
+            (*middle)->left = do_rebalance({nodes.begin(), middle}, depth + 1);
+            (*middle)->right =
+                    do_rebalance({middle + 1, nodes.end()}, depth + 1);
+            return *middle;
+        }
+    }
+
+    template <bool IsDynamic, typename Func>
+    void do_traverse(Point point, Float radius, Func&& func) const {
+        radius *= radius;
+        tree_helpers::NodeStack<Node, IsDynamic> todo(optimal_depth(), root_);
+        while (!todo.empty()) {
+            Node* node = todo.pop();
+            Point diff = node->value.first - point;
+            if (node->value and length2(diff) < radius and
+                not std::forward<Func>(func)(iterator(node))) // Stop?
+                return;
+            todo.push_if(diff[node->axis] > -radius, node->left);
+            todo.push_if(diff[node->axis] < +radius, node->right);
+        }
+    }
+
+    template <bool IsDynamic>
+    iterator do_nearest(Point point) const {
+        Node* result = nullptr;
+        Float result_dist2 = Inf<Float>;
+        tree_helpers::NodeStack<Node, IsDynamic> todo(optimal_depth(), root_);
+        while (!todo.empty()) {
+            Node* node = todo.pop();
+            Point diff = node->value.first - point;
+            if (node->value) {
+                Float dist2 = length2(diff);
+                if (result_dist2 > dist2) {
+                    result_dist2 = dist2;
+                    result = node;
+                }
+            }
+            Float d = diff[node->axis];
+            todo.push_if(d * d < result_dist2 or d > 0, node->left);
+            todo.push_if(d * d < result_dist2 or d < 0, node->right);
+        }
+        return result;
+    }
+};
+
+template <
+        typename Value,
+        typename Alloc = std::allocator<Value>,
+        std::floating_point Float = float>
+using KdTree2 = KdTree<Value, Alloc, Float, 2>;
+
+template <
+        typename Value,
+        typename Alloc = std::allocator<Value>,
+        std::floating_point Float = float>
+using KdTree3 = KdTree<Value, Alloc, Float, 3>;
+
+} // namespace pre
+
+#endif // #ifndef PRE_GRAPHICS_KDTREE
