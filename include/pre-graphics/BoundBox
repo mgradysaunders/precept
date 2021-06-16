@@ -46,13 +46,13 @@ struct BoundBox : ArrayLike<BoundBox<Entry, N>, Array<Entry, N>> {
     constexpr BoundBox() noexcept = default;
 
     constexpr BoundBox(const Array<Entry, N>& point) noexcept
-        : points_{point, point} {
+        : points{point, point} {
     }
 
     constexpr BoundBox(
             const Array<Entry, N>& point0,
             const Array<Entry, N>& point1) noexcept
-        : points_{point0, point1} {
+        : points{point0, point1} {
     }
 
     /// Construct as union over range.
@@ -78,30 +78,30 @@ struct BoundBox : ArrayLike<BoundBox<Entry, N>, Array<Entry, N>> {
     }
 
     constexpr Array<Entry, N>* begin() noexcept {
-        return &points_[0];
+        return &points[0];
     }
 
     constexpr const Array<Entry, N>* begin() const noexcept {
-        return &points_[0];
+        return &points[0];
     }
 
     constexpr Array<Entry, N>* end() noexcept {
-        return &points_[0] + 2;
+        return &points[0] + 2;
     }
 
     constexpr const Array<Entry, N>* end() const noexcept {
-        return &points_[0] + 2;
+        return &points[0] + 2;
     }
 
     /** \} */
 
   public:
     constexpr const Array<Entry, N>& min() const noexcept {
-        return points_[0];
+        return points[0];
     }
 
     constexpr const Array<Entry, N>& max() const noexcept {
-        return points_[1];
+        return points[1];
     }
 
     constexpr bool overlaps(const BoundBox& other) const noexcept {
@@ -239,16 +239,16 @@ struct BoundBox : ArrayLike<BoundBox<Entry, N>, Array<Entry, N>> {
     /// Implicit cast as other.
     template <typename Other, size_t M>
     constexpr operator BoundBox<Other, M>() const noexcept {
-        return {Array<Other, M>(points_[0]), Array<Other, M>(points_[1])};
+        return {Array<Other, M>(points[0]), Array<Other, M>(points[1])};
     }
 
   public:
     void serialize(auto& serializer) {
-        serializer <=> points_;
+        serializer <=> points;
     }
 
-  private:
-    Array<Entry, N> points_[2] = {
+  public:
+    Array<Entry, N> points[2] = {
             Array<Entry, N>(+pre::numeric_limits<Entry>::max()),
             Array<Entry, N>(-pre::numeric_limits<Entry>::max())};
 };
