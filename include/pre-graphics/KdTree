@@ -102,6 +102,9 @@ class KdTree {
 
     typedef tree_helpers::NodeIterator<NodeTraits, 1> const_iterator;
 
+    template <bool IsDynamic>
+    using NodeStack = tree_helpers::NodeStack<Node, IsDynamic>;
+
     using NodePool = ObjectHeapPool<Node, Alloc>;
 
   public:
@@ -358,7 +361,7 @@ class KdTree {
     template <bool IsDynamic, typename Func>
     void do_traverse(Point point, Float radius, Func&& func) const {
         radius *= radius;
-        tree_helpers::NodeStack<Node, IsDynamic> todo(optimal_depth(), root_);
+        NodeStack<IsDynamic> todo(optimal_depth(), root_);
         while (not todo.empty()) {
             Node* node = todo.pop();
             Point diff = node->value.first - point;
@@ -374,7 +377,7 @@ class KdTree {
     iterator do_nearest(Point point) const {
         Node* result = nullptr;
         Float result_dist2 = Inf<Float>;
-        tree_helpers::NodeStack<Node, IsDynamic> todo(optimal_depth(), root_);
+        NodeStack<IsDynamic> todo(optimal_depth(), root_);
         while (not todo.empty()) {
             Node* node = todo.pop();
             Point diff = node->value.first - point;

@@ -125,6 +125,9 @@ class Bvh {
 
     typedef tree_helpers::NodeIterator<NodeTraits, 1> const_iterator;
 
+    template <bool IsDynamic>
+    using NodeStack = tree_helpers::NodeStack<Node, IsDynamic>;
+
     using NodePool = ObjectHeapPool<Node, Alloc>;
 
     static_assert(sizeof(Node) <= 256);
@@ -403,7 +406,7 @@ class Bvh {
   private:
     template <bool IsDynamic, typename Func>
     void do_traverse(const Box& box, Func&& func) const {
-        tree_helpers::NodeStack<Node, IsDynamic> todo(optimal_depth(), root_);
+        NodeStack<IsDynamic> todo(optimal_depth(), root_);
         while (not todo.empty()) {
             Node* node = todo.pop();
             if (node->axis >= 0) {
@@ -422,7 +425,7 @@ class Bvh {
     template <bool IsDynamic, typename Func>
     void do_traverse(const Ray& ray, Func&& func) const {
         BoundBoxRayTester tester(ray);
-        tree_helpers::NodeStack<Node, IsDynamic> todo(optimal_depth(), root_);
+        NodeStack<IsDynamic> todo(optimal_depth(), root_);
         while (not todo.empty()) {
             Node* node = todo.pop();
             if (not tester(node->box))

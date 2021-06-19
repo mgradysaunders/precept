@@ -40,9 +40,9 @@ namespace pre {
 
 template <size_t Dim>
 class LinearBvh {
-  public:
     static_assert(Dim == 2 or Dim == 3);
 
+  public:
     using Box = BoundBox<float, Dim>;
 };
 
