@@ -34,24 +34,22 @@
 #ifndef PRE_GRAPHICS_BOUND_BOX
 #define PRE_GRAPHICS_BOUND_BOX
 
-#include <pre/Array>
-#include <pre/math>
+#include <pre-graphics/BasicRay>
 
 namespace pre {
 
 /// An axis-aligned bounding box.
-template <concepts::arithmetic Entry, size_t N>
-struct BoundBox : ArrayLike<BoundBox<Entry, N>, Array<Entry, N>> {
+template <concepts::arithmetic Value, size_t Dim>
+struct BoundBox : ArrayLike<BoundBox<Value, Dim>, Array<Value, Dim>> {
   public:
+    using Point = Array<Value, Dim>;
+
     constexpr BoundBox() noexcept = default;
 
-    constexpr BoundBox(const Array<Entry, N>& point) noexcept
-        : points{point, point} {
+    constexpr BoundBox(const Point& point) noexcept : points{point, point} {
     }
 
-    constexpr BoundBox(
-            const Array<Entry, N>& point0,
-            const Array<Entry, N>& point1) noexcept
+    constexpr BoundBox(const Point& point0, const Point& point1) noexcept
         : points{point0, point1} {
     }
 
@@ -77,70 +75,73 @@ struct BoundBox : ArrayLike<BoundBox<Entry, N>, Array<Entry, N>> {
         return 2;
     }
 
-    constexpr Array<Entry, N>* begin() noexcept {
+    constexpr Point* begin() noexcept {
         return &points[0];
     }
 
-    constexpr const Array<Entry, N>* begin() const noexcept {
+    constexpr const Point* begin() const noexcept {
         return &points[0];
     }
 
-    constexpr Array<Entry, N>* end() noexcept {
+    constexpr Point* end() noexcept {
         return &points[0] + 2;
     }
 
-    constexpr const Array<Entry, N>* end() const noexcept {
+    constexpr const Point* end() const noexcept {
         return &points[0] + 2;
     }
 
     /** \} */
 
   public:
-    constexpr const Array<Entry, N>& min() const noexcept {
+    constexpr const Point& min() const noexcept {
         return points[0];
     }
 
-    constexpr const Array<Entry, N>& max() const noexcept {
+    constexpr const Point& max() const noexcept {
         return points[1];
     }
 
     constexpr bool overlaps(const BoundBox& other) const noexcept {
-        return (min() <= other.max() && max() >= other.min()).all();
+        return (min() <= other.max() and max() >= other.min()).all();
     }
 
     constexpr bool contains(const BoundBox& other) const noexcept {
-        return (min() <= other.min() && max() >= other.max()).all();
+        return (min() <= other.min() and max() >= other.max()).all();
     }
 
-    constexpr bool overlaps(const Array<Entry, N>& point) const noexcept {
+    constexpr bool overlaps(const Point& point) const noexcept {
         return overlaps(BoundBox(point));
     }
 
-    constexpr bool contains(const Array<Entry, N>& point) const noexcept {
+    constexpr bool contains(const Point& point) const noexcept {
         return contains(BoundBox(point));
     }
 
-    constexpr BoundBox expand(Entry eps) const noexcept {
+    constexpr BoundBox expand(Value eps) const noexcept {
         return {min() - eps, max() + eps};
     }
 
-    constexpr BoundBox expand_relative(Entry eps) const noexcept
-            requires std::floating_point<Entry> {
+    constexpr BoundBox expand_relative(Value eps) const noexcept
+            requires std::floating_point<Value> {
         auto cen = center();
-        auto off = (1 + eps) / 2 * diag();
+        auto off = (1 + eps) / 2 * extent();
         return BoundBox{cen - off, cen + off};
     }
 
-    constexpr Array<Entry, N> diag() const noexcept {
+    constexpr Point extent() const noexcept {
         return max() - min();
     }
 
-    constexpr Array<Entry, N> center() const noexcept {
+    constexpr Point center() const noexcept {
         return (min() + max()) / 2;
     }
 
-    constexpr Array<Entry, N> clamp(
-            const Array<Entry, N>& point) const noexcept {
+    constexpr Value center(int dim) const noexcept {
+        return (min()[dim] + max()[dim]) / 2;
+    }
+
+    constexpr Point clamp(const Point& point) const noexcept {
         return pre::clamp(point, min(), max());
     }
 
@@ -151,8 +152,8 @@ struct BoundBox : ArrayLike<BoundBox<Entry, N>, Array<Entry, N>> {
     /// - In 3 dimensions, this measures signed volume.
     /// - ...
     ///
-    constexpr Entry volume() const noexcept {
-        return diag().prod();
+    constexpr Value volume() const noexcept {
+        return extent().prod();
     }
 
     /// Hyper surface area.
@@ -162,26 +163,26 @@ struct BoundBox : ArrayLike<BoundBox<Entry, N>, Array<Entry, N>> {
     /// - In 3 dimensions, this measures signed surface area.
     /// - ...
     ///
-    constexpr Entry surface_area() const noexcept {
-        if constexpr (N == 1) {
+    constexpr Value surface_area() const noexcept {
+        if constexpr (Dim == 1) {
             return 1;
         }
         else {
-            Entry area = 0;
-            Array<Entry, N> dims = diag();
-            for (size_t k = 0; k < N; k++) {
-                Entry prod = 1;
-                for (size_t j = 0; j < N; j++)
+            Value area = 0;
+            Point dims = extent();
+            for (size_t k = 0; k < Dim; k++) {
+                Value prod = 1;
+                for (size_t j = 0; j < Dim; j++)
                     if (j != k)
                         prod *= dims[j];
                 area += prod;
             }
-            return 2 * area; // Wrong for N = 1.
+            return 2 * area; // Wrong for Dim = 1.
         }
     }
 
     template <std::floating_point Float>
-    constexpr auto operator()(const Array<Float, N>& fac) const noexcept {
+    constexpr auto operator()(const Array<Float, Dim>& fac) const noexcept {
         return lerp(fac, min(), max());
     }
 
@@ -195,28 +196,30 @@ struct BoundBox : ArrayLike<BoundBox<Entry, N>, Array<Entry, N>> {
     /** \{ */
 
     constexpr BoundBox operator|(const BoundBox& other) const noexcept {
-        return {pre::min(min(), other.min()), pre::max(max(), other.max())};
+        return {pre::min(min(), other.min()), //
+                pre::max(max(), other.max())};
     }
 
     constexpr BoundBox operator&(const BoundBox& other) const noexcept {
-        return {pre::max(min(), other.min()), pre::min(max(), other.max())};
+        return {pre::max(min(), other.min()), //
+                pre::min(max(), other.max())};
     }
 
-    constexpr BoundBox operator|(const Array<Entry, N>& point) const noexcept {
+    constexpr BoundBox operator|(const Point& point) const noexcept {
         return *this | BoundBox(point);
     }
 
-    constexpr BoundBox operator&(const Array<Entry, N>& point) const noexcept {
+    constexpr BoundBox operator&(const Point& point) const noexcept {
         return *this & BoundBox(point);
     }
 
     friend constexpr BoundBox operator|(
-            const Array<Entry, N>& point, const BoundBox& box) noexcept {
+            const Point& point, const BoundBox& box) noexcept {
         return BoundBox(point) | box;
     }
 
     friend constexpr BoundBox operator&(
-            const Array<Entry, N>& point, const BoundBox& box) noexcept {
+            const Point& point, const BoundBox& box) noexcept {
         return BoundBox(point) & box;
     }
 
@@ -237,9 +240,10 @@ struct BoundBox : ArrayLike<BoundBox<Entry, N>, Array<Entry, N>> {
     }
 
     /// Implicit cast as other.
-    template <typename Other, size_t M>
-    constexpr operator BoundBox<Other, M>() const noexcept {
-        return {Array<Other, M>(points[0]), Array<Other, M>(points[1])};
+    template <typename Other, size_t OtherDim>
+    constexpr operator BoundBox<Other, OtherDim>() const noexcept {
+        return {Array<Other, OtherDim>(min()), //
+                Array<Other, OtherDim>(max())};
     }
 
   public:
@@ -248,9 +252,7 @@ struct BoundBox : ArrayLike<BoundBox<Entry, N>, Array<Entry, N>> {
     }
 
   public:
-    Array<Entry, N> points[2] = {
-            Array<Entry, N>(+pre::numeric_limits<Entry>::max()),
-            Array<Entry, N>(-pre::numeric_limits<Entry>::max())};
+    Point points[2] = {Point(+Maximum<Value>), Point(-Maximum<Value>)};
 };
 
 template <typename T, size_t N>
@@ -271,6 +273,42 @@ using BoundBox3 = BoundBox<T, 3>;
 
 template <typename T>
 using BoundBox4 = BoundBox<T, 4>;
+
+template <std::floating_point Float, size_t Dim>
+class BoundBoxRayTester {
+  public:
+    using Ray = BasicRay<Float, Dim>;
+    using Box = BoundBox<Float, Dim>;
+
+    BoundBoxRayTester(const Ray& ray)
+        : ray_ptr(&ray), dir_inv(1 / ray.dir), dir_sgn(pre::signbit(ray.dir)) {
+    }
+
+    bool operator()(const Box& box) const noexcept {
+        const Array<Float, Dim>& pos = ray_ptr->pos;
+        constexpr Float tmin_fac = 1 - 2 * MachineEch<Float, 3>;
+        constexpr Float tmax_fac = 1 + 2 * MachineEch<Float, 3>;
+        auto box_min = [&](int k) { return box[dir_sgn[k]][k]; };
+        auto box_max = [&](int k) { return box[1 - dir_sgn[k]][k]; };
+        Float tmin = tmin_fac * dir_inv[0] * (box_min(0) - pos[0]);
+        Float tmax = tmax_fac * dir_inv[0] * (box_max(0) - pos[0]);
+        for (int k = 1; k < int(Dim); k++) {
+            Float tmink = tmin_fac * dir_inv[k] * (box_min(k) - pos[k]);
+            Float tmaxk = tmax_fac * dir_inv[k] * (box_max(k) - pos[k]);
+            if (not(tmin < tmaxk and tmax > tmink))
+                return false;
+            tmin = pre::max(tmin, tmink);
+            tmax = pre::min(tmax, tmaxk);
+        }
+        return tmin < ray_ptr->tmax and //
+               tmax > ray_ptr->tmin;
+    }
+
+  public:
+    const Ray* ray_ptr = nullptr;
+    Array<Float, Dim> dir_inv = {};
+    Array<short, Dim> dir_sgn = {};
+};
 
 } // namespace pre
 

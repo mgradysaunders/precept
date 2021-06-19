@@ -71,6 +71,12 @@ template <std::floating_point T>
 struct numeric_limits<std::complex<T>> : numeric_limits<T> {};
 
 template <typename T>
+constexpr auto Minimum = numeric_limits<T>::min();
+
+template <typename T>
+constexpr auto Maximum = numeric_limits<T>::max();
+
+template <typename T>
 constexpr auto Inf = numeric_limits<T>::infinity();
 
 template <typename T>
@@ -81,5 +87,8 @@ constexpr auto Eps = numeric_limits<T>::epsilon();
 
 template <typename T>
 constexpr auto MachineEps = numeric_limits<T>::machine_epsilon();
+
+template <typename T, unsigned n>
+constexpr auto MachineEch = numeric_limits<T>::echelon(n);
 
 } // namespace pre

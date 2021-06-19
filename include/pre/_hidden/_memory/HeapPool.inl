@@ -140,7 +140,25 @@ class HeapPool {
         }
     }
 
-  private:
+  public:
+    /// \name Observers
+    /** \{ */
+
+    size_t bytes_per_elem() const noexcept {
+        return elem_size_;
+    }
+
+    size_t elems_per_pool() const noexcept {
+        return pool_size_;
+    }
+
+    Alloc get_allocator() {
+        return alloc_;
+    }
+
+    /** \} */
+
+  protected:
     /// Pool type.
     struct alignas(16) Pool {
         Pool* next;            ///< Pointer to next pool.

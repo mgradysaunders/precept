@@ -1,0 +1,186 @@
+/*-*- C++ -*-*/
+/* Copyright (c) 2018-21 M. Grady Saunders
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
+ * are met:
+ *
+ *   1. Redistributions of source code must retain the above
+ *      copyright notice, this list of conditions and the following
+ *      disclaimer.
+ *
+ *   2. Redistributions in binary form must reproduce the above
+ *      copyright notice, this list of conditions and the following
+ *      disclaimer in the documentation and/or other materials
+ *      provided with the distribution.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED
+ * TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
+ * PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR
+ * CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
+ * EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
+ * PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
+ * PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY
+ * OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+ * NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+ * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
+/*-*-*-*-*-*-*/
+#if !(__cplusplus >= 201709L)
+#error "Precept requires >= C++20"
+#endif // #if !(__cplusplus >= 201709L)
+#pragma once
+#ifndef PRE_GRAPHICS_ANIMATION_CURVE
+#define PRE_GRAPHICS_ANIMATION_CURVE
+
+#include <pre/math>
+
+namespace pre {
+
+/// An animation curve.
+///
+/// \note 
+/// This is based off of animation curves appearing in applications
+/// like Blender and Unity. Weighted evaluation allows for more control,
+/// but is more computationally expensive.
+///
+template <std::floating_point Float = float>
+class AnimationCurve {
+  public:
+    enum class WrapMode {
+        Clamp,  ///< Clamp to end value.
+        Repeat, ///< Repeat forever.
+        Mirror  ///< Repeat forever, mirroring every other cycle.
+    };
+    WrapMode wrap_mode_before = WrapMode::Clamp;
+    WrapMode wrap_mode_after = WrapMode::Clamp;
+
+    /// A keyframe.
+    struct Keyframe {
+        enum class WeightMode {
+            None = 0, ///< Unweighted.
+            In = 1,   ///< Weighted only in.
+            Out = 2,  ///< Weighted only out.
+            Both = 3  ///< Weighted both in and out.
+        };
+        WeightMode weight_mode = WeightMode::None;
+        Float time = 0;
+        Float value = 0;
+        Float in_slope = 0;
+        Float in_weight = 0.333;
+        Float out_slope = 0;
+        Float out_weight = 0.333;
+
+        void serialize(auto& serializer) {
+            serializer <=> weight_mode;
+            serializer <=> time;
+            serializer <=> value;
+            serializer <=> in_slope;
+            serializer <=> in_weight;
+            serializer <=> out_slope;
+            serializer <=> out_weight;
+        }
+        constexpr bool operator<(const Keyframe& other) const noexcept {
+            return time < other.time;
+        }
+    };
+
+    /// Keyframe array, must be sorted!
+    std::vector<Keyframe> keyframes;
+
+    /// Serialize.
+    void serialize(auto& serializer) {
+        serializer <=> wrap_mode_before;
+        serializer <=> wrap_mode_after;
+        serializer <=> keyframes;
+    }
+
+  public:
+    Float operator()(Float time) const;
+};
+
+template <std::floating_point Float>
+inline Float AnimationCurve<Float>::operator()(Float time) const {
+    switch (keyframes.size()) {
+    case 0: return 0;
+    case 1: return keyframes.front().value;
+    default: break;
+    }
+    Float time0 = keyframes.front().time;
+    Float time1 = keyframes.back().time;
+    if (time < time0) {
+        switch (wrap_mode_before) {
+        default:
+        case WrapMode::Clamp: return keyframes.front().value;
+        case WrapMode::Repeat: time = frepeat(time, time0, time1); break;
+        case WrapMode::Mirror: time = fmirror(time, time0, time1); break;
+        }
+    }
+    else if (time > time1) {
+        switch (wrap_mode_after) {
+        default:
+        case WrapMode::Clamp: return keyframes.back().value;
+        case WrapMode::Repeat: time = frepeat(time, time0, time1); break;
+        case WrapMode::Mirror: time = fmirror(time, time0, time1); break;
+        }
+    }
+    const Keyframe* key0 = nullptr;
+    const Keyframe* key1 = nullptr;
+    if (keyframes.size() == 2) {
+        key0 = &keyframes.front();
+        key1 = &keyframes.back();
+    }
+    else {
+        auto itr = std::lower_bound(
+                keyframes.begin(), //
+                keyframes.end(), time,
+                [](const Keyframe& keyframe, Float time) {
+                    return keyframe.time < time;
+                });
+        if (itr == keyframes.begin())
+            return keyframes.front().value;
+        if (itr == keyframes.end())
+            return keyframes.back().value;
+        key0 = &*(itr - 1);
+        key1 = &*(itr - 0);
+    }
+    time0 = key0->time;
+    time1 = key1->time;
+    Float t = (time - time0) / (time1 - time0);
+    Float x0 = time0;
+    Float x1 = time1;
+    Float y0 = key0->value, m0 = key0->out_slope;
+    Float y1 = key1->value, m1 = key1->in_slope;
+    if ((int(key0->weight_mode) & 2) == 0 and
+        (int(key1->weight_mode) & 1) == 0)
+        return bezier(
+                t, y0,                   //
+                y0 + m0 * (x1 - x0) / 3, //
+                y1 - m1 * (x1 - x0) / 3, y1);
+
+    // Weighted evaluation.
+    Float dx0 = !(int(key0->weight_mode) & 2) ? 0.333333 : key0->out_weight;
+    Float dx1 = !(int(key1->weight_mode) & 1) ? 0.333333 : key1->in_weight;
+    dx0 *= x1 - x0;
+    dx1 *= x1 - x0;
+    Float x = (1 - t) * x0 + t * x1;
+    Float xs[4] = {x0, x0 + dx0, x1 - dx1, x1};
+    Float ys[4] = {y0, y0 + m0 * dx0, y1 - m1 * dx1, y1};
+    Float ds[3] = {dx0, xs[2] - xs[1], dx1};
+    Float tn = t;
+    for (int itrn = 0; itrn < 16; ++itrn) {
+        Float xn = bezier(tn, xs[0], xs[1], xs[2], xs[3]);
+        if (std::fabs(x - xn) < Float(0.001))
+            break;
+        // Newton-Raphson update.
+        tn = tn - (xn - x) / (3 * bezier(tn, ds[0], ds[1], ds[2]));
+        tn = std::fmax(tn, Float(0.0));
+        tn = std::fmin(tn, Float(1.0));
+    }
+    return bezier(tn, ys[0], ys[1], ys[2], ys[3]);
+}
+
+} // namespace pre
+
+#endif // #ifndef PRE_GRAPHICS_ANIMATION_CURVE

@@ -140,4 +140,20 @@ template <typename T, typename U>
     return hermite_deriv(t, p0, p1 - pprev, pnext - p0, p1);
 }
 
+template <typename T, typename U>
+[[gnu::always_inline]] constexpr auto bezier(
+        T t, const U& a, const U& b, const U& c) {
+    T u = T(1) - t;
+    return u * u * a + T(2) * u * t * b + t * t * c;
+}
+
+template <typename T, typename U>
+[[gnu::always_inline]] constexpr auto bezier(
+        T t, const U& a, const U& b, const U& c, const U& d) {
+    T u = T(1) - t;
+    T u2 = u * u, u3 = u2 * u;
+    T t2 = t * t, t3 = t2 * t;
+    return u3 * a + T(3) * (u2 * t * b + u * t2 * c) + t3 * d;
+}
+
 } // namespace pre

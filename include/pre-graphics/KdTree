@@ -216,15 +216,13 @@ class KdTree {
         if (!empty()) {
             std::vector<Node*> nodes;
             nodes.reserve(size_);
-            // aabb_ = {};
             for (Node* node = head_; node;) {
                 if (not node->value) {
                     Node* next = node->next;
-                    pool_.deallocate(node);
+                    pool_.deellocate(node);
                     node = next;
                 }
                 else {
-                    // aabb_ |= node->value.first;
                     nodes.emplace_back(node);
                     node = node->next;
                 }
@@ -252,9 +250,9 @@ class KdTree {
     }
 
   public:
-    template <typename Func>
+    template <std::invocable<iterator> Func>
     void traverse(Point point, Float radius, Func&& func) const {
-        if (depth_ < 64)
+        if (depth_ < tree_helpers::StaticStackSize)
             do_traverse<0>(point, radius, std::forward<Func>(func));
         else
             do_traverse<1>(point, radius, std::forward<Func>(func));
@@ -289,7 +287,8 @@ class KdTree {
     }
 
     iterator nearest(Point point) const {
-        return depth_ < 64 ? do_nearest<0>(point) : do_nearest<1>(point);
+        return depth_ < tree_helpers::StaticStackSize ? do_nearest<0>(point)
+                                                      : do_nearest<1>(point);
     }
 
   private:
@@ -360,11 +359,11 @@ class KdTree {
     void do_traverse(Point point, Float radius, Func&& func) const {
         radius *= radius;
         tree_helpers::NodeStack<Node, IsDynamic> todo(optimal_depth(), root_);
-        while (!todo.empty()) {
+        while (not todo.empty()) {
             Node* node = todo.pop();
             Point diff = node->value.first - point;
             if (node->value and length2(diff) < radius and
-                not std::forward<Func>(func)(iterator(node))) // Stop?
+                not std::invoke(func, iterator(node))) // Stop?
                 return;
             todo.push_if(diff[node->axis] > -radius, node->left);
             todo.push_if(diff[node->axis] < +radius, node->right);
@@ -376,7 +375,7 @@ class KdTree {
         Node* result = nullptr;
         Float result_dist2 = Inf<Float>;
         tree_helpers::NodeStack<Node, IsDynamic> todo(optimal_depth(), root_);
-        while (!todo.empty()) {
+        while (not todo.empty()) {
             Node* node = todo.pop();
             Point diff = node->value.first - point;
             if (node->value) {

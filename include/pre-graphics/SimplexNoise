@@ -89,7 +89,7 @@ struct SimplexNoise {
             Array<Float, N> sep = t - ver;
             Float env = Float(0.5) - dot(sep, sep);
             if (env > 0) {
-                Array<Float, N> grad = gradient_(tskew0 + off);
+                Array<Float, N> grad = gradient(tskew0 + off);
                 Float proj = dot(grad, sep);
                 res.value += (env * env) * proj;
                 res.deriv += (env * env) * grad - (4 * env * proj) * sep;
@@ -118,7 +118,7 @@ struct SimplexNoise {
 
   private:
     // Gradient at lattice location.
-    Array<Float, N> gradient_(const Array<int, N>& loc) const noexcept {
+    Array<Float, N> gradient(const Array<int, N>& loc) const noexcept {
         // Compute unique stream for location using Cantor pairing function.
         int stream = loc[0];
         for (size_t k = 1; k < N; k++)

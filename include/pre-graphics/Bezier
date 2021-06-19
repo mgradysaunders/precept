@@ -47,6 +47,8 @@ namespace pre {
 template <std::floating_point Float, size_t N, size_t D>
 struct Bezier : ArrayLike<Bezier<Float, N, D>, Array<Float, N>> {
   public:
+    using Point = Array<Float, N>;
+
     constexpr Bezier() noexcept = default;
 
     template <typename... Args>
@@ -64,23 +66,23 @@ struct Bezier : ArrayLike<Bezier<Float, N, D>, Array<Float, N>> {
     /// \name Container API
     /** \{ */
 
-    constexpr size_t size() noexcept {
+    constexpr size_t size() const noexcept {
         return D + 1;
     }
 
-    constexpr Array<Float, N>* begin() noexcept {
+    constexpr Point* begin() noexcept {
         return &points[0];
     }
 
-    constexpr const Array<Float, N>* begin() const noexcept {
+    constexpr const Point* begin() const noexcept {
         return &points[0];
     }
 
-    constexpr Array<Float, N>* end() noexcept {
+    constexpr Point* end() noexcept {
         return &points[0] + size();
     }
 
-    constexpr const Array<Float, N>* end() const noexcept {
+    constexpr const Point* end() const noexcept {
         return &points[0] + size();
     }
 
@@ -88,7 +90,7 @@ struct Bezier : ArrayLike<Bezier<Float, N, D>, Array<Float, N>> {
 
   public:
     /// Value operator.
-    constexpr Array<Float, N> operator()(Float t) const noexcept {
+    constexpr Point operator()(Float t) const noexcept {
         if constexpr (D == 0) {
             return points[0];
         }
@@ -99,8 +101,7 @@ struct Bezier : ArrayLike<Bezier<Float, N, D>, Array<Float, N>> {
             Float u = 1 - t;
             Float u2 = u * u;
             Float t2 = t * t;
-            return u2 * points[0] + (2 * u * t) * points[1] +
-                   t2 * points[2];
+            return u2 * points[0] + (2 * u * t) * points[1] + t2 * points[2];
         }
         else if constexpr (D == 3) {
             Float u = 1 - t;
@@ -126,7 +127,7 @@ struct Bezier : ArrayLike<Bezier<Float, N, D>, Array<Float, N>> {
     }
 
     /// Nth derivative.
-    template <size_t Which>
+    template <size_t Which = D>
     constexpr Bezier<Float, N, D - Which> nth_deriv() const noexcept {
         if constexpr (Which == 0)
             return *this;
@@ -147,9 +148,8 @@ struct Bezier : ArrayLike<Bezier<Float, N, D>, Array<Float, N>> {
             bez.points[0] = points[0];
             bez.points[D + 1] = points[D];
             for (size_t k = 1; k < D + 1; k++)
-                bez.points[k] =
-                        (Float(k) / Float(D + 1)) * points[k - 1] +
-                        (Float(D + 1 - k) / Float(D + 1)) * points[k];
+                bez.points[k] = (Float(k) / Float(D + 1)) * points[k - 1] +
+                                (Float(D + 1 - k) / Float(D + 1)) * points[k];
             return bez;
         }
     }
@@ -169,9 +169,8 @@ struct Bezier : ArrayLike<Bezier<Float, N, D>, Array<Float, N>> {
             fwd.points[D - 1] = points[D];
             rev.points[D - 1] = points[D];
             for (size_t k = 1, l = D - 2; k < D - 1; k++, l--) {
-                fwd.points[k] =
-                        (Float(D) / Float(D - k)) * points[k] -
-                        (Float(k) / Float(D - k)) * fwd.points[k - 1];
+                fwd.points[k] = (Float(D) / Float(D - k)) * points[k] -
+                                (Float(k) / Float(D - k)) * fwd.points[k - 1];
                 rev.points[l] =
                         (Float(D) / Float(l + 1)) * points[l + 1] -
                         (Float(D) / Float(l + 1) - 1) * rev.points[l + 1];
@@ -203,9 +202,8 @@ struct Bezier : ArrayLike<Bezier<Float, N, D>, Array<Float, N>> {
             return pre::length(points[1] - points[0]);
         }
         else if constexpr (D == 2) {
-            Array<Float, N> q0 =
-                    2 * (points[0] - 2 * points[1] + points[2]);
-            Array<Float, N> q1 = 2 * (points[1] - points[0]);
+            Point q0 = 2 * (points[0] - 2 * points[1] + points[2]);
+            Point q1 = 2 * (points[1] - points[0]);
             Float a = dot(q0, q0), b = 2 * dot(q0, q1);
             Float c = dot(q1, q1);
             Float a1_2 = pre::sqrt(a);
@@ -223,22 +221,27 @@ struct Bezier : ArrayLike<Bezier<Float, N, D>, Array<Float, N>> {
             return len;
         }
         else {
-            // Is approximately quadratic?
-            Float tmp0 = length2(points[2] + points[0] - 2 * points[1]);
-            Float tmp1 = length2(points[3] + points[1] - 2 * points[2]);
-            Float tmp2 = length2(
-                    points[3] - points[0] + 3 * (points[1] - points[2]));
-            if (tmp2 <= pre::numeric_limits<Float>::machine_epsilon() ||
-                tmp2 <= pre::max(tmp0, tmp1) * 0.05) {
-                // Calculate as if this is quadratic.
-                return decrease_degree().length();
+            StaticStack<Bezier, 16> todo;
+            todo.push(*this);
+            Float len = 0;
+            while (not todo.empty()) {
+                Bezier curr = todo.pop();
+                // Is approximately quadratic?
+                Float tmp0 = length2(curr.nth_deriv()[0]);
+                Float tmp1 = std::max(
+                        length2(curr[3] - curr[0]),
+                        length2(curr.decrease_degree().nth_deriv()[0]));
+                if (todo.size() > 14 or //
+                    tmp0 <= tmp1 * Float(0.001)) {
+                    len += curr.decrease_degree().length();
+                }
+                else {
+                    auto [next0, next1] = curr.cut(0.5);
+                    todo.push(next0);
+                    todo.push(next1);
+                }
             }
-            else {
-                // Subdivide until this is approximately quadratic, note this
-                // usually takes 3 or 4 recursions.
-                auto [cut0, cut1] = cut(0.5);
-                return cut0.length() + cut1.length();
-            }
+            return len;
         }
     }
 
@@ -251,16 +254,16 @@ struct Bezier : ArrayLike<Bezier<Float, N, D>, Array<Float, N>> {
             return {points[0], lerp(t, points[0], points[1])};
         }
         else if constexpr (D == 2) {
-            Array<Float, N> tmp0 = lerp(t, points[0], points[1]);
-            Array<Float, N> tmp1 = lerp(t, points[1], points[2]);
+            Point tmp0 = lerp(t, points[0], points[1]);
+            Point tmp1 = lerp(t, points[1], points[2]);
             return {points[0], tmp0, lerp(t, tmp0, tmp1)};
         }
         else {
             Bezier bez;
             bez.points[0] = points[0];
-            Array<Float, N> tmps[2 * (D + 1)];
-            Array<Float, N>* tmps0 = &tmps[0];
-            Array<Float, N>* tmps1 = &tmps[D + 1];
+            Point tmps[2 * (D + 1)];
+            Point* tmps0 = &tmps[0];
+            Point* tmps1 = &tmps[D + 1];
             for (size_t k = 0; k < D + 1; k++)
                 tmps0[k] = points[k];
             for (size_t j = 1; j < D + 1; j++) {
@@ -273,6 +276,14 @@ struct Bezier : ArrayLike<Bezier<Float, N, D>, Array<Float, N>> {
         }
     }
 
+    /// Subset on range \f$ [t_0, t_1] \f$.
+    constexpr Bezier subset(Float t0, Float t1) const noexcept {
+        if (t1 < t0)
+            return subset(t1, t0).reverse();
+        else
+            return subset(t1).reverse().subset(1 - t0 * t1).reverse();
+    }
+
     constexpr std::pair<Bezier, Bezier> cut(Float t) const noexcept {
         return {subset(t), reverse().subset(1 - t).reverse()};
     }
@@ -282,10 +293,11 @@ struct Bezier : ArrayLike<Bezier<Float, N, D>, Array<Float, N>> {
         return Bezier<Other, N, D>(&points[0]);
     }
 
-    constexpr operator BoundBox<Float, N>() const noexcept {
-        BoundBox<Float, N> box;
-        for (const auto& point : points)
-            box |= point;
+    template <std::floating_point Other>
+    constexpr operator BoundBox<Other, N>() const noexcept {
+        BoundBox<Other, N> box;
+        for (const Array<Float, N>& point : points)
+            box |= Array<Other, N>(point);
         return box;
     }
 
@@ -295,7 +307,7 @@ struct Bezier : ArrayLike<Bezier<Float, N, D>, Array<Float, N>> {
     }
 
   public:
-    Array<Float, N> points[D + 1];
+    Point points[D + 1];
 };
 
 template <typename T, size_t N, concepts::array... Args>

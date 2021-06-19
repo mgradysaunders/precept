@@ -8,60 +8,66 @@ namespace pre {
 
 namespace tree_helpers {
 
+constexpr size_t StaticStackSize = 64;
+
 template <typename Node, bool IsDynamic>
-class NodeStack;
+struct NodeStack;
 
 template <typename Node>
-class NodeStack<Node, false> {
-  public:
+struct NodeStack<Node, false> {
     constexpr explicit NodeStack(size_t, const Node* root = nullptr) noexcept {
         push(root);
     }
+
     constexpr void push(const Node* node) noexcept {
         if (node)
-            nodes_.push(const_cast<Node*>(node));
-    }
-    constexpr void push_if(bool cond, const Node* node) noexcept {
-        if (cond && node)
-            nodes_.push(const_cast<Node*>(node));
-    }
-    constexpr Node* pop() noexcept {
-        return nodes_.pop();
-    }
-    constexpr bool empty() noexcept {
-        return nodes_.empty();
+            todo.push(const_cast<Node*>(node));
     }
 
-  private:
-    StaticStack<Node*, 64> nodes_;
+    constexpr void push_if(bool cond, const Node* node) noexcept {
+        if (cond && node)
+            todo.push(const_cast<Node*>(node));
+    }
+
+    constexpr Node* pop() noexcept {
+        return todo.pop();
+    }
+
+    constexpr bool empty() noexcept {
+        return todo.empty();
+    }
+
+    StaticStack<Node*, StaticStackSize> todo;
 };
 
 template <typename Node>
-class NodeStack<Node, true> {
-  public:
+struct NodeStack<Node, true> {
     explicit NodeStack(size_t optimal_depth, const Node* root = nullptr) {
-        nodes_.reserve(2 * optimal_depth);
+        todo.reserve(2 * optimal_depth);
         push(root);
     }
+
     void push(const Node* node) {
         if (node)
-            nodes_.push_back(const_cast<Node*>(node));
-    }
-    void push_if(bool cond, const Node* node) {
-        if (cond && node)
-            nodes_.push_back(const_cast<Node*>(node));
-    }
-    Node* pop() {
-        Node* node = nodes_.back();
-        nodes_.pop_back();
-        return node;
-    }
-    bool empty() noexcept {
-        return nodes_.empty();
+            todo.push_back(const_cast<Node*>(node));
     }
 
-  private:
-    std::vector<Node*> nodes_;
+    void push_if(bool cond, const Node* node) {
+        if (cond && node)
+            todo.push_back(const_cast<Node*>(node));
+    }
+
+    Node* pop() {
+        Node* node = todo.back();
+        todo.pop_back();
+        return node;
+    }
+
+    bool empty() noexcept {
+        return todo.empty();
+    }
+
+    std::vector<Node*> todo;
 };
 
 } // namespace tree_helpers

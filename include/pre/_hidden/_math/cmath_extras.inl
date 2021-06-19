@@ -519,6 +519,31 @@ template <std::integral T, std::integral... Ts>
 /// \name Floating point helpers
 /** \{ */
 
+template <std::floating_point Float>
+inline Float frepeat(Float x, Float a, Float b) {
+    x -= a;
+    b -= a;
+    Float r = std::remainder(x, b);
+    if (r < 0)
+        r += b;
+    return r + a;
+}
+
+template <std::floating_point Float>
+inline Float fmirror(Float x, Float a, Float b) {
+    x -= a;
+    b -= a;
+    int q = 0;
+    Float r = std::remquo(x, b, &q);
+    if (r < 0) {
+        r += b;
+        q++;
+    }
+    if (q & 1)
+        r = b - r;
+    return r + a;
+}
+
 /// Increment float to next representable value.
 template <std::floating_point T>
 inline T float_incr(T x) noexcept {
