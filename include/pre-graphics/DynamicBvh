@@ -1,19 +1,19 @@
 /*-*- C++ -*-*/
 /* Copyright (c) 2018-21 M. Grady Saunders
- * 
+ *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
  * are met:
- * 
+ *
  *   1. Redistributions of source code must retain the above
  *      copyright notice, this list of conditions and the following
  *      disclaimer.
- * 
+ *
  *   2. Redistributions in binary form must reproduce the above
  *      copyright notice, this list of conditions and the following
  *      disclaimer in the documentation and/or other materials
  *      provided with the distribution.
- * 
+ *
  * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
  * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED
  * TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
@@ -31,8 +31,8 @@
 #error "Precept requires >= C++20"
 #endif // #if !(__cplusplus >= 201709L)
 #pragma once
-#ifndef PRE_GRAPHICS_DBVH
-#define PRE_GRAPHICS_DBVH
+#ifndef PRE_GRAPHICS_DYNAMIC_BVH
+#define PRE_GRAPHICS_DYNAMIC_BVH
 
 #include <pre/memory>
 #include <pre-graphics/BoundBox>
@@ -46,23 +46,23 @@ namespace pre {
 /// is in turn based on the dynamic tree implementation in Bullet3D.
 ///
 template <size_t Dim>
-class Dbvh {
+class DynamicBvh {
   public:
     using Box = BoundBox<float, Dim>;
 
-    using Index = std::int32_t;
+    using Int = std::int32_t;
 
-    static constexpr Index Nil = -1;
+    static constexpr Int Nil = -1;
 
     struct Node {
         Box box;
         union {
-            Index parent;
-            Index next;
+            Int parent;
+            Int next;
         };
-        Index child0 = Nil;
-        Index child1 = Nil;
-        Index height = 0;
+        Int child0 = Nil;
+        Int child1 = Nil;
+        Int height = 0;
 
         constexpr bool is_leaf() const noexcept {
             return child0 == Nil;
@@ -73,24 +73,24 @@ class Dbvh {
     };
 
   public:
-    Dbvh() = default;
+    DynamicBvh() = default;
 
-    Dbvh(const Dbvh&) = default;
+    DynamicBvh(const DynamicBvh&) = default;
 
-    Dbvh(Dbvh&&) = default;
+    DynamicBvh(DynamicBvh&&) = default;
 
-    Dbvh& operator=(const Dbvh&) = default;
+    DynamicBvh& operator=(const DynamicBvh&) = default;
 
-    Dbvh& operator=(Dbvh&&) = default;
+    DynamicBvh& operator=(DynamicBvh&&) = default;
 
   public:
-    Index max_height() const;
+    Int max_height() const;
 
-    Index max_imbalance() const;
+    Int max_imbalance() const;
 
-    Index insert(const Box& box);
+    Int insert(const Box& box);
 
-    void remove(Index node);
+    void remove(Int node);
 
     void clear() noexcept {
         nodes_.clear();
@@ -104,34 +104,34 @@ class Dbvh {
 
     void rebuild_optimal();
 
-    Node& operator[](Index node) noexcept {
+    Node& operator[](Int node) noexcept {
         return nodes_[node];
     }
 
-    const Node& operator[](Index node) const noexcept {
+    const Node& operator[](Int node) const noexcept {
         return nodes_[node];
     }
 
   private:
     std::vector<Node> nodes_;
 
-    Index free_ = Nil;
+    Int free_ = Nil;
 
-    Index root_ = Nil;
+    Int root_ = Nil;
 
   private:
     /// \name Private implementation
     /** \{ */
 
-    Index private_allocate();
+    Int private_allocate();
 
-    void private_deallocate(Index node);
+    void private_deallocate(Int node);
 
-    void private_insert(Index node);
+    void private_insert(Int node);
 
-    void private_remove(Index node);
+    void private_remove(Int node);
 
-    Index private_balance(Index node);
+    Int private_balance(Int node);
 
     template <bool IsDynamic, typename Func>
     void private_traverse(const Box& box, Func&& func);
@@ -140,13 +140,13 @@ class Dbvh {
 };
 
 template <size_t Dim>
-inline typename Dbvh<Dim>::Index Dbvh<Dim>::max_height() const {
+inline typename DynamicBvh<Dim>::Int DynamicBvh<Dim>::max_height() const {
     return root_ == Nil ? 0 : nodes_[root_].height;
 }
 
 template <size_t Dim>
-inline typename Dbvh<Dim>::Index Dbvh<Dim>::max_imbalance() const {
-    Index imbalance = 0;
+inline typename DynamicBvh<Dim>::Int DynamicBvh<Dim>::max_imbalance() const {
+    Int imbalance = 0;
     for (const Node& node_ref : nodes_) {
         if (node_ref.height < 2)
             continue;
@@ -159,8 +159,8 @@ inline typename Dbvh<Dim>::Index Dbvh<Dim>::max_imbalance() const {
 }
 
 template <size_t Dim>
-inline typename Dbvh<Dim>::Index Dbvh<Dim>::insert(const Box& box) {
-    Index node = private_allocate();
+inline typename DynamicBvh<Dim>::Int DynamicBvh<Dim>::insert(const Box& box) {
+    Int node = private_allocate();
     Node& node_ref = nodes_[node];
     node_ref.box = box;
     node_ref.height = 0;
@@ -169,18 +169,18 @@ inline typename Dbvh<Dim>::Index Dbvh<Dim>::insert(const Box& box) {
 }
 
 template <size_t Dim>
-inline void Dbvh<Dim>::remove(Index node) {
+inline void DynamicBvh<Dim>::remove(Int node) {
     private_remove(node);
     private_deallocate(node);
 }
 
 template <size_t Dim>
-inline void Dbvh<Dim>::rebuild_optimal() {
+inline void DynamicBvh<Dim>::rebuild_optimal() {
     if (root_ == Nil)
         return;
-    std::vector<Index> todo;
+    std::vector<Int> todo;
     todo.reserve(nodes_.size());
-    for (Index node = 0; node < Index(nodes_.size()); node++) {
+    for (Int node = 0; node < Int(nodes_.size()); node++) {
         if (nodes_[node].height < 0)
             continue;
         if (nodes_[node].is_leaf()) {
@@ -193,10 +193,10 @@ inline void Dbvh<Dim>::rebuild_optimal() {
     }
     while (todo.size() > 1) {
         float min_cost = INFINITY;
-        Index mini = -1;
-        Index minj = -1;
-        for (Index i = 0; i < Index(todo.size()); ++i) {
-            for (Index j = i + 1; j < Index(todo.size()); ++j) {
+        Int mini = -1;
+        Int minj = -1;
+        for (Int i = 0; i < Int(todo.size()); ++i) {
+            for (Int j = i + 1; j < Int(todo.size()); ++j) {
                 Box boxi = nodes_[todo[i]].box;
                 Box boxj = nodes_[todo[j]].box;
                 float cost = (boxi | boxj).surface_area();
@@ -204,9 +204,9 @@ inline void Dbvh<Dim>::rebuild_optimal() {
                     min_cost = cost, mini = i, minj = j;
             }
         }
-        Index parent = private_allocate();
-        Index child0 = todo[mini];
-        Index child1 = todo[minj];
+        Int parent = private_allocate();
+        Int child0 = todo[mini];
+        Int child1 = todo[minj];
         Node& child0_ref = nodes_[child0];
         Node& child1_ref = nodes_[child1];
         Node& parent_ref = nodes_[parent];
@@ -226,42 +226,42 @@ inline void Dbvh<Dim>::rebuild_optimal() {
 }
 
 template <size_t Dim>
-inline typename Dbvh<Dim>::Index Dbvh<Dim>::private_allocate() {
+inline typename DynamicBvh<Dim>::Int DynamicBvh<Dim>::private_allocate() {
     if (free_ == Nil) {
-        Index nodes_size = nodes_.size();
+        Int nodes_size = nodes_.size();
         if (nodes_.size() == 0)
             nodes_.resize(32);
         else
             nodes_.resize(nodes_.size() * 2);
-        for (Index node = nodes_size; node < Index(nodes_.size()); node++) {
+        for (Int node = nodes_size; node < Int(nodes_.size()); node++) {
             nodes_[node].next = node + 1;
             nodes_[node].height = -1;
         }
         nodes_.back().next = Nil;
         free_ = nodes_size;
     }
-    Index node = free_;
+    Int node = free_;
     free_ = nodes_[node].next;
     nodes_[node] = Node();
     return node;
 }
 
 template <size_t Dim>
-inline void Dbvh<Dim>::private_deallocate(Index node) {
+inline void DynamicBvh<Dim>::private_deallocate(Int node) {
     nodes_[node].next = free_;
     nodes_[node].height = -1;
     free_ = node;
 }
 
 template <size_t Dim>
-inline void Dbvh<Dim>::private_insert(Index leaf) {
+inline void DynamicBvh<Dim>::private_insert(Int leaf) {
     if (root_ == Nil) {
         root_ = leaf;
         nodes_[root_].parent = Nil;
         return;
     }
     Box leaf_box = nodes_[leaf].box;
-    Index node = root_;
+    Int node = root_;
     while (nodes_[node].is_branch()) {
         Node& node_ref = nodes_[node];
         Node& child0_ref = nodes_[node_ref.child0];
@@ -284,8 +284,8 @@ inline void Dbvh<Dim>::private_insert(Index leaf) {
             node = cost_child0 < cost_child1 ? node_ref.child0
                                              : node_ref.child1;
     }
-    Index old_parent = nodes_[node].parent;
-    Index new_parent = private_allocate();
+    Int old_parent = nodes_[node].parent;
+    Int new_parent = private_allocate();
     Node& new_parent_ref = nodes_[new_parent];
     new_parent_ref.parent = old_parent;
     new_parent_ref.box = leaf_box | nodes_[node].box;
@@ -316,15 +316,15 @@ inline void Dbvh<Dim>::private_insert(Index leaf) {
 }
 
 template <size_t Dim>
-inline void Dbvh<Dim>::private_remove(Index leaf) {
+inline void DynamicBvh<Dim>::private_remove(Int leaf) {
     if (root_ == leaf) {
         root_ = Nil;
         return;
     }
-    Index parent = nodes_[leaf].parent;
-    Index sibling = nodes_[parent].child0 == leaf ? nodes_[parent].child1
-                                                  : nodes_[parent].child0;
-    if (Index grandparent = nodes_[parent].parent; grandparent != Nil) {
+    Int parent = nodes_[leaf].parent;
+    Int sibling = nodes_[parent].child0 == leaf ? nodes_[parent].child1
+                                                : nodes_[parent].child0;
+    if (Int grandparent = nodes_[parent].parent; grandparent != Nil) {
         if (nodes_[grandparent].child0 == parent)
             nodes_[grandparent].child0 = sibling;
         else
@@ -332,7 +332,7 @@ inline void Dbvh<Dim>::private_remove(Index leaf) {
         nodes_[sibling].parent = grandparent;
         private_deallocate(parent);
 
-        Index node = grandparent;
+        Int node = grandparent;
         while (node != Nil) {
             node = private_balance(node);
             Node& node_ref = nodes_[node];
@@ -352,19 +352,19 @@ inline void Dbvh<Dim>::private_remove(Index leaf) {
 }
 
 template <size_t Dim>
-inline typename Dbvh<Dim>::Index Dbvh<Dim>::private_balance(Index a) {
+inline typename DynamicBvh<Dim>::Int DynamicBvh<Dim>::private_balance(Int a) {
     Node& a_ref = nodes_[a];
     if (a_ref.is_leaf() or a_ref.height < 2)
         return a;
-    Index b = a_ref.child0;
-    Index c = a_ref.child1;
+    Int b = a_ref.child0;
+    Int c = a_ref.child1;
     Node& b_ref = nodes_[b];
     Node& c_ref = nodes_[c];
-    Index imbalance = c_ref.height - b_ref.height;
+    Int imbalance = c_ref.height - b_ref.height;
     // Rotate C up to A.
     if (imbalance > 1) {
-        Index f = c_ref.child0;
-        Index g = c_ref.child1;
+        Int f = c_ref.child0;
+        Int g = c_ref.child1;
         Node& f_ref = nodes_[f];
         Node& g_ref = nodes_[g];
         // Swap A and C.
@@ -402,8 +402,8 @@ inline typename Dbvh<Dim>::Index Dbvh<Dim>::private_balance(Index a) {
     }
     // Rotate B up to A.
     if (imbalance < -1) {
-        Index d = b_ref.child0;
-        Index e = b_ref.child1;
+        Int d = b_ref.child0;
+        Int e = b_ref.child1;
         Node& d_ref = nodes_[d];
         Node& e_ref = nodes_[e];
         // Swap A and B.
@@ -445,12 +445,12 @@ inline typename Dbvh<Dim>::Index Dbvh<Dim>::private_balance(Index a) {
 #if 0
 template <size_t Dim>
 template <bool IsDynamic, typename Func>
-inline void Dbvh<Dim>::private_traverse(const Box& box, Func&& func) {
-    StaticStack<Index, 128> todo;
+inline void DynamicBvh<Dim>::private_traverse(const Box& box, Func&& func) {
+    StaticStack<Int, 128> todo;
     if (root_ != Nil)
         todo.push(root_);
     while (not todo.empty()) {
-        Index node = todo.pop();
+        Int node = todo.pop();
         Node& node_ref = nodes_[node];
         if (node_ref.is_branch()) {
             if (nodes_[node_ref.child0].box.overlaps(box))
@@ -464,10 +464,10 @@ inline void Dbvh<Dim>::private_traverse(const Box& box, Func&& func) {
 }
 #endif
 
-using Dbvh2 = Dbvh<2>;
+using DynamicBvh2 = DynamicBvh<2>;
 
-using Dbvh3 = Dbvh<3>;
+using DynamicBvh3 = DynamicBvh<3>;
 
 } // namespace pre
 
-#endif // #ifndef PRE_GRAPHICS_DBVH
+#endif // #ifndef PRE_GRAPHICS_DYNAMIC_BVH

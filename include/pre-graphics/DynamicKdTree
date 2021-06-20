@@ -31,14 +31,16 @@
 #error "Precept requires >= C++20"
 #endif // #if !(__cplusplus >= 201709L)
 #pragma once
-#ifndef PRE_GRAPHICS_KDTREE
-#define PRE_GRAPHICS_KDTREE
+#ifndef PRE_GRAPHICS_DYNAMIC_KD_TREE
+#define PRE_GRAPHICS_DYNAMIC_KD_TREE
 
 #include <pre-graphics/BoundBox>
 
 #include "_hidden/NodeIterator.inl"
 
 #include "_hidden/NodeStack.inl"
+
+// TODO Redo again
 
 namespace pre {
 
@@ -410,4 +412,4 @@ using KdTree3 = KdTree<Value, Alloc, Float, 3>;
 
 } // namespace pre
 
-#endif // #ifndef PRE_GRAPHICS_KDTREE
+#endif // #ifndef PRE_GRAPHICS_DYNAMIC_KD_TREE
