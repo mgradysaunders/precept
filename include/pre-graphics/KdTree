@@ -105,8 +105,6 @@ class KdTree {
     template <bool IsDynamic>
     using NodeStack = tree_helpers::NodeStack<Node, IsDynamic>;
 
-    using NodePool = ObjectHeapPool<Node, Alloc>;
-
   public:
     KdTree(size_t pool_size = 32768 / sizeof(Node), const Alloc& alloc = {})
         : pool_(pool_size, alloc) {
@@ -295,7 +293,9 @@ class KdTree {
     }
 
   private:
-    NodePool pool_;
+    using Pool = ObjectHeapPool<Node, Alloc>;
+
+    Pool pool_;
 
     Node* root_ = nullptr;
 
