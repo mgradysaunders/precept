@@ -39,9 +39,11 @@
 
 namespace pre {
 
-/// A basic ray.
+template <typename>
+struct RayTester;
+
 template <std::floating_point Float, size_t Dim>
-class BasicRay {
+class Ray {
   public:
     static_assert(Dim == 2 or Dim == 3);
 
@@ -58,19 +60,26 @@ class BasicRay {
     mutable Float tmax = Inf<Float>;
 
   public:
-    constexpr BasicRay() noexcept = default;
+    constexpr Ray() noexcept = default;
 
-    constexpr BasicRay(
-            const Array<Float, Dim>& p, const Array<Float, Dim>& d) noexcept
+    constexpr Ray(
+            const Array<Float, Dim>& p, //
+            const Array<Float, Dim>& d) noexcept
         : pos(p), dir(d) {
     }
 
-    constexpr BasicRay(
+    constexpr Ray(
             const Array<Float, Dim>& p,
             const Array<Float, Dim>& d,
             Float t0,
             Float t1) noexcept
         : pos(p), dir(d), tmin(t0), tmax(t1) {
+    }
+
+  public:
+    template <typename Any>
+    constexpr bool test(const Any& any) const {
+        return RayTester<Any>(*this).test(any);
     }
 
     constexpr bool is_in_range(Float t) const noexcept {
@@ -83,18 +92,18 @@ class BasicRay {
 };
 
 template <typename T, typename U, size_t N>
-BasicRay(const Array<T, N>&, const Array<U, N>&)
-        -> BasicRay<to_floating_point_t<T, U>, N>;
+Ray(const Array<T, N>&, const Array<U, N>&)
+        -> Ray<to_floating_point_t<T, U>, N>;
 
 template <typename T, typename U, typename V, typename W, size_t N>
-BasicRay(const Array<T, N>&, const Array<U, N>&, const V&, const W&)
-        -> BasicRay<to_floating_point_t<T, U, V, W>, N>;
+Ray(const Array<T, N>&, const Array<U, N>&, const V&, const W&)
+        -> Ray<to_floating_point_t<T, U, V, W>, N>;
 
-template <std::floating_point Float>
-using BasicRay2 = BasicRay<Float, 2>;
+template <std::floating_point Float = float>
+using Ray2 = Ray<Float, 2>;
 
-template <std::floating_point Float>
-using BasicRay3 = BasicRay<Float, 3>;
+template <std::floating_point Float = float>
+using Ray3 = Ray<Float, 3>;
 
 } // namespace pre
 

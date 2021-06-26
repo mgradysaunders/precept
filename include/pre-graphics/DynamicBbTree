@@ -31,22 +31,22 @@
 #error "Precept requires >= C++20"
 #endif // #if !(__cplusplus >= 201709L)
 #pragma once
-#ifndef PRE_GRAPHICS_DYNAMIC_BVH
-#define PRE_GRAPHICS_DYNAMIC_BVH
+#ifndef PRE_GRAPHICS_DYNAMIC_BB_TREE
+#define PRE_GRAPHICS_DYNAMIC_BB_TREE
 
 #include <pre/memory>
 #include <pre-graphics/BoundBox>
 
 namespace pre {
 
-/// A dynamic bounding volume hierarchy.
+/// A dynamic bounding box tree.
 ///
 /// \note
 /// This is based on the dynamic tree implementation in Box2D, which
 /// is in turn based on the dynamic tree implementation in Bullet3D.
 ///
 template <size_t Dim>
-class DynamicBvh {
+class DynamicBbTree {
   public:
     using Box = BoundBox<float, Dim>;
 
@@ -72,16 +72,18 @@ class DynamicBvh {
         }
     };
 
+    using Nodes = std::vector<Node>;
+
   public:
-    DynamicBvh() = default;
+    DynamicBbTree() = default;
 
-    DynamicBvh(const DynamicBvh&) = default;
+    DynamicBbTree(const DynamicBbTree&) = default;
 
-    DynamicBvh(DynamicBvh&&) = default;
+    DynamicBbTree(DynamicBbTree&&) = default;
 
-    DynamicBvh& operator=(const DynamicBvh&) = default;
+    DynamicBbTree& operator=(const DynamicBbTree&) = default;
 
-    DynamicBvh& operator=(DynamicBvh&&) = default;
+    DynamicBbTree& operator=(DynamicBbTree&&) = default;
 
   public:
     Int max_height() const;
@@ -113,7 +115,7 @@ class DynamicBvh {
     }
 
   private:
-    std::vector<Node> nodes_;
+    Nodes nodes_;
 
     Int free_ = Nil;
 
@@ -140,12 +142,12 @@ class DynamicBvh {
 };
 
 template <size_t Dim>
-inline typename DynamicBvh<Dim>::Int DynamicBvh<Dim>::max_height() const {
+inline typename DynamicBbTree<Dim>::Int DynamicBbTree<Dim>::max_height() const {
     return root_ == Nil ? 0 : nodes_[root_].height;
 }
 
 template <size_t Dim>
-inline typename DynamicBvh<Dim>::Int DynamicBvh<Dim>::max_imbalance() const {
+inline typename DynamicBbTree<Dim>::Int DynamicBbTree<Dim>::max_imbalance() const {
     Int imbalance = 0;
     for (const Node& node_ref : nodes_) {
         if (node_ref.height < 2)
@@ -159,7 +161,7 @@ inline typename DynamicBvh<Dim>::Int DynamicBvh<Dim>::max_imbalance() const {
 }
 
 template <size_t Dim>
-inline typename DynamicBvh<Dim>::Int DynamicBvh<Dim>::insert(const Box& box) {
+inline typename DynamicBbTree<Dim>::Int DynamicBbTree<Dim>::insert(const Box& box) {
     Int node = private_allocate();
     Node& node_ref = nodes_[node];
     node_ref.box = box;
@@ -169,13 +171,13 @@ inline typename DynamicBvh<Dim>::Int DynamicBvh<Dim>::insert(const Box& box) {
 }
 
 template <size_t Dim>
-inline void DynamicBvh<Dim>::remove(Int node) {
+inline void DynamicBbTree<Dim>::remove(Int node) {
     private_remove(node);
     private_deallocate(node);
 }
 
 template <size_t Dim>
-inline void DynamicBvh<Dim>::rebuild_optimal() {
+inline void DynamicBbTree<Dim>::rebuild_optimal() {
     if (root_ == Nil)
         return;
     std::vector<Int> todo;
@@ -226,7 +228,7 @@ inline void DynamicBvh<Dim>::rebuild_optimal() {
 }
 
 template <size_t Dim>
-inline typename DynamicBvh<Dim>::Int DynamicBvh<Dim>::private_allocate() {
+inline typename DynamicBbTree<Dim>::Int DynamicBbTree<Dim>::private_allocate() {
     if (free_ == Nil) {
         Int nodes_size = nodes_.size();
         if (nodes_.size() == 0)
@@ -247,14 +249,14 @@ inline typename DynamicBvh<Dim>::Int DynamicBvh<Dim>::private_allocate() {
 }
 
 template <size_t Dim>
-inline void DynamicBvh<Dim>::private_deallocate(Int node) {
+inline void DynamicBbTree<Dim>::private_deallocate(Int node) {
     nodes_[node].next = free_;
     nodes_[node].height = -1;
     free_ = node;
 }
 
 template <size_t Dim>
-inline void DynamicBvh<Dim>::private_insert(Int leaf) {
+inline void DynamicBbTree<Dim>::private_insert(Int leaf) {
     if (root_ == Nil) {
         root_ = leaf;
         nodes_[root_].parent = Nil;
@@ -316,7 +318,7 @@ inline void DynamicBvh<Dim>::private_insert(Int leaf) {
 }
 
 template <size_t Dim>
-inline void DynamicBvh<Dim>::private_remove(Int leaf) {
+inline void DynamicBbTree<Dim>::private_remove(Int leaf) {
     if (root_ == leaf) {
         root_ = Nil;
         return;
@@ -352,7 +354,7 @@ inline void DynamicBvh<Dim>::private_remove(Int leaf) {
 }
 
 template <size_t Dim>
-inline typename DynamicBvh<Dim>::Int DynamicBvh<Dim>::private_balance(Int a) {
+inline typename DynamicBbTree<Dim>::Int DynamicBbTree<Dim>::private_balance(Int a) {
     Node& a_ref = nodes_[a];
     if (a_ref.is_leaf() or a_ref.height < 2)
         return a;
@@ -445,7 +447,7 @@ inline typename DynamicBvh<Dim>::Int DynamicBvh<Dim>::private_balance(Int a) {
 #if 0
 template <size_t Dim>
 template <bool IsDynamic, typename Func>
-inline void DynamicBvh<Dim>::private_traverse(const Box& box, Func&& func) {
+inline void DynamicBbTree<Dim>::private_traverse(const Box& box, Func&& func) {
     StaticStack<Int, 128> todo;
     if (root_ != Nil)
         todo.push(root_);
@@ -464,10 +466,10 @@ inline void DynamicBvh<Dim>::private_traverse(const Box& box, Func&& func) {
 }
 #endif
 
-using DynamicBvh2 = DynamicBvh<2>;
+using DynamicBbTree2 = DynamicBbTree<2>;
 
-using DynamicBvh3 = DynamicBvh<3>;
+using DynamicBbTree3 = DynamicBbTree<3>;
 
 } // namespace pre
 
-#endif // #ifndef PRE_GRAPHICS_DYNAMIC_BVH
+#endif // #ifndef PRE_GRAPHICS_DYNAMIC_BB_TREE

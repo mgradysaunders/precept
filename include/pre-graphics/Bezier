@@ -51,10 +51,10 @@ struct Bezier : ArrayLike<Bezier<Float, N, D>, Array<Float, N>> {
 
     constexpr Bezier() noexcept = default;
 
-    template <typename... Args>
-    constexpr Bezier(const Array<Float, N>& p0, const Args&... pk) noexcept
+    template <typename... Points>
+    constexpr Bezier(const Point& p0, const Points&... pk) noexcept
         : points{p0, pk...} {
-        static_assert(sizeof...(Args) + 1 == D + 1);
+        static_assert(sizeof...(Points) + 1 == D + 1);
     }
 
     template <std::floating_point Other>
@@ -293,19 +293,6 @@ struct Bezier : ArrayLike<Bezier<Float, N, D>, Array<Float, N>> {
         return Bezier<Other, N, D>(&points[0]);
     }
 
-    template <std::floating_point Other>
-    constexpr operator BoundBox<Other, N>() const noexcept {
-        BoundBox<Other, N> box;
-        for (const Array<Float, N>& point : points)
-            box |= Array<Other, N>(point);
-        return box;
-    }
-
-  public:
-    void serialize(auto& serializer) {
-        serializer <=> points;
-    }
-
   public:
     Point points[D + 1];
 };
@@ -314,16 +301,16 @@ template <typename T, size_t N, concepts::array... Args>
 Bezier(const Array<T, N>&, const Args&...)
         -> Bezier<to_floating_point_t<T>, N, sizeof...(Args)>;
 
-template <std::floating_point Float>
+template <std::floating_point Float = float>
 using QuadraticBezier2 = Bezier<Float, 2, 2>;
 
-template <std::floating_point Float>
+template <std::floating_point Float = float>
 using QuadraticBezier3 = Bezier<Float, 3, 2>;
 
-template <std::floating_point Float>
+template <std::floating_point Float = float>
 using CubicBezier2 = Bezier<Float, 2, 3>;
 
-template <std::floating_point Float>
+template <std::floating_point Float = float>
 using CubicBezier3 = Bezier<Float, 3, 3>;
 
 } // namespace pre

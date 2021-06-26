@@ -34,7 +34,7 @@
 #ifndef PRE_GRAPHICS_BOUND_BOX
 #define PRE_GRAPHICS_BOUND_BOX
 
-#include <pre-graphics/BasicRay>
+#include <pre-graphics/Ray>
 
 namespace pre {
 
@@ -65,6 +65,10 @@ struct BoundBox : ArrayLike<BoundBox<Value, Dim>, Array<Value, Dim>> {
     explicit constexpr BoundBox(Iterator from, Iterator to, Cast&& cast) {
         while (from != to)
             *this |= std::invoke(cast, from++);
+    }
+
+    template <concepts::minimal_container Container>
+    constexpr BoundBox(const Container& c) : BoundBox(c.begin(), c.end()) {
     }
 
   public:
@@ -247,11 +251,6 @@ struct BoundBox : ArrayLike<BoundBox<Value, Dim>, Array<Value, Dim>> {
     }
 
   public:
-    void serialize(auto& serializer) {
-        serializer <=> points;
-    }
-
-  public:
     Point points[2] = {Point(+Maximum<Value>), Point(-Maximum<Value>)};
 };
 
@@ -262,29 +261,26 @@ template <typename T, typename U, size_t N>
 BoundBox(const Array<T, N>&, const Array<U, N>&)
         -> BoundBox<std::common_type_t<T, U>, N>;
 
-template <typename T>
+template <typename T = float>
 using BoundBox1 = BoundBox<T, 1>;
 
-template <typename T>
+template <typename T = float>
 using BoundBox2 = BoundBox<T, 2>;
 
-template <typename T>
+template <typename T = float>
 using BoundBox3 = BoundBox<T, 3>;
 
-template <typename T>
+template <typename T = float>
 using BoundBox4 = BoundBox<T, 4>;
 
 template <std::floating_point Float, size_t Dim>
-class BoundBoxRayTester {
+struct RayTester<BoundBox<Float, Dim>> {
   public:
-    using Ray = BasicRay<Float, Dim>;
-    using Box = BoundBox<Float, Dim>;
-
-    BoundBoxRayTester(const Ray& ray)
+    RayTester(const Ray<Float, Dim>& ray)
         : ray_ptr(&ray), dir_inv(1 / ray.dir), dir_sgn(pre::signbit(ray.dir)) {
     }
 
-    bool operator()(const Box& box) const noexcept {
+    bool operator()(const BoundBox<Float, Dim>& box) const noexcept {
         const Array<Float, Dim>& pos = ray_ptr->pos;
         constexpr Float tmin_fac = 1 - 2 * MachineEch<Float, 3>;
         constexpr Float tmax_fac = 1 + 2 * MachineEch<Float, 3>;
@@ -305,7 +301,7 @@ class BoundBoxRayTester {
     }
 
   public:
-    const Ray* ray_ptr = nullptr;
+    const Ray<Float, Dim>* ray_ptr = nullptr;
     Array<Float, Dim> dir_inv = {};
     Array<short, Dim> dir_sgn = {};
 };

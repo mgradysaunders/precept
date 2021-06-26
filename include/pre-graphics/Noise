@@ -40,9 +40,11 @@
 namespace pre {
 
 /// A simplex noise generator.
-template <std::floating_point Float, size_t N>
-struct SimplexNoise {
-    static_assert(N <= 16, "Probably not robust beyond 16 dimensions!");
+template <std::floating_point Float, size_t Dim>
+struct Noise {
+    static_assert(Dim <= 16, "Probably not robust beyond 16 dimensions!");
+
+    using Point = Array<Float, Dim>;
 
   public:
     /// Random seed.
@@ -50,51 +52,51 @@ struct SimplexNoise {
 
   public:
     /// Calculate value and derivative at coordinate.
-    auto operator()(const Array<Float, N>& t) const noexcept {
+    auto operator()(const Point& t) const noexcept {
         struct {
             Float value = 0;
-            Array<Float, N> deriv;
+            Point deriv;
         } res = {};
         // Skew, shift into [0, 1)^2.
-        static Float f = (1.0 / N) * (pre::sqrt(N + 1) - 1.0);
-        static Float g = (1.0 / N) * (1.0 - 1.0 / pre::sqrt(N + 1));
-        Array<Float, N> tskew = t + f * t.sum();
-        Array<int, N> tskew0 = fast_floor(tskew);
+        static Float f = (1.0 / Dim) * (pre::sqrt(Dim + 1) - 1.0);
+        static Float g = (1.0 / Dim) * (1.0 - 1.0 / pre::sqrt(Dim + 1));
+        Point tskew = t + f * t.sum();
+        Array<int, Dim> tskew0 = fast_floor(tskew);
         tskew -= tskew0;
         // Determine decreasing order of coordinate values.
-        Array<int, N> reorder = {};
-        if constexpr (N == 2) {
+        Array<int, Dim> reorder = {};
+        if constexpr (Dim == 2) {
             reorder = {0, 1};
             if (tskew[0] < tskew[1])
                 reorder = {1, 0};
         }
-        else if constexpr (N > 2) {
-            std::pair<Float, int> sorted[N];
-            for (size_t k = 0; k < N; k++)
+        else if constexpr (Dim > 2) {
+            std::pair<Float, int> sorted[Dim];
+            for (size_t k = 0; k < Dim; k++)
                 sorted[k] = {tskew[k], int(k)};
             std::sort(
-                    &sorted[0], &sorted[0] + N,
+                    &sorted[0], &sorted[0] + Dim,
                     [](const std::pair<Float, int>& tmp0,
                        const std::pair<Float, int>& tmp1) {
                         return tmp0.first > tmp1.first;
                     });
-            for (size_t k = 0; k < N; k++)
+            for (size_t k = 0; k < Dim; k++)
                 reorder[k] = sorted[k].second;
         }
         // Add terms.
-        Array<Float, N> ver0 = tskew0 - g * tskew0.sum();
-        Array<int, N> off = {};
-        for (size_t k = 0; k <= N; k++) {
-            Array<Float, N> ver = ver0 + off - g * k;
-            Array<Float, N> sep = t - ver;
+        Point ver0 = tskew0 - g * tskew0.sum();
+        Array<int, Dim> off = {};
+        for (size_t k = 0; k <= Dim; k++) {
+            Point ver = ver0 + off - g * k;
+            Point sep = t - ver;
             Float env = Float(0.5) - dot(sep, sep);
             if (env > 0) {
-                Array<Float, N> grad = gradient(tskew0 + off);
+                Point grad = private_grad(tskew0 + off);
                 Float proj = dot(grad, sep);
                 res.value += (env * env) * proj;
                 res.deriv += (env * env) * grad - (4 * env * proj) * sep;
             }
-            if (k < N)
+            if (k < Dim)
                 off[reorder[k]]++;
         }
         // Apply gain and exponential saturation.
@@ -108,42 +110,39 @@ struct SimplexNoise {
         return res;
     }
 
-    Float value(const Array<Float, N>& t) const noexcept {
+    Float value(const Point& t) const noexcept {
         return operator()(t).value;
     }
 
-    Array<Float, N> deriv(const Array<Float, N>& t) const noexcept {
+    Point deriv(const Point& t) const noexcept {
         return operator()(t).deriv;
     }
 
   private:
-    // Gradient at lattice location.
-    Array<Float, N> gradient(const Array<int, N>& loc) const noexcept {
-        // Compute unique stream for location using Cantor pairing function.
+    Point private_grad(const Array<int, Dim>& loc) const noexcept {
         int stream = loc[0];
-        for (size_t k = 1; k < N; k++)
+        for (size_t k = 1; k < Dim; k++)
             stream = cantor(stream, loc[k]);
 
-        // Initialize gradient.
-        Array<Float, N> grad;
+        Point grad;
         Pcg32 gen(seed, stream);
-        for (size_t k = 0; k < N; k++)
+        for (size_t k = 0; k < Dim; k++)
             grad[k] = (2 / Float(15)) * gen(16) - 1;
         return grad;
     }
 };
 
-template <std::floating_point Float>
-using SimplexNoise1 = SimplexNoise<Float, 1>;
+template <std::floating_point Float = float>
+using Noise1 = Noise<Float, 1>;
 
-template <std::floating_point Float>
-using SimplexNoise2 = SimplexNoise<Float, 2>;
+template <std::floating_point Float = float>
+using Noise2 = Noise<Float, 2>;
 
-template <std::floating_point Float>
-using SimplexNoise3 = SimplexNoise<Float, 3>;
+template <std::floating_point Float = float>
+using Noise3 = Noise<Float, 3>;
 
-template <std::floating_point Float>
-using SimplexNoise4 = SimplexNoise<Float, 4>;
+template <std::floating_point Float = float>
+using Noise4 = Noise<Float, 4>;
 
 } // namespace pre
 

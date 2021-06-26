@@ -1,0 +1,115 @@
+/*-*- C++ -*-*/
+/* Copyright (c) 2018-21 M. Grady Saunders
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
+ * are met:
+ *
+ *   1. Redistributions of source code must retain the above
+ *      copyright notice, this list of conditions and the following
+ *      disclaimer.
+ *
+ *   2. Redistributions in binary form must reproduce the above
+ *      copyright notice, this list of conditions and the following
+ *      disclaimer in the documentation and/or other materials
+ *      provided with the distribution.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED
+ * TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
+ * PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR
+ * CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
+ * EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
+ * PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
+ * PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY
+ * OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+ * NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+ * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
+/*-*-*-*-*-*-*/
+#if !(__cplusplus >= 201709L)
+#error "Precept requires >= C++20"
+#endif // #if !(__cplusplus >= 201709L)
+#pragma once
+#ifndef PRE_GRAPHICS_TRIANGLE
+#define PRE_GRAPHICS_TRIANGLE
+
+#include <pre-graphics/BoundBox>
+#include <pre-graphics/Line>
+
+namespace pre {
+
+template <std::floating_point Float, size_t Dim>
+struct Triangle : ArrayLike<Triangle<Float, Dim>, Array<Float, Dim>> {
+  public:
+    static_assert(Dim == 2 or Dim == 3);
+
+    using Vec = Array<Float, Dim>;
+
+    using Point = Array<Float, Dim>;
+
+  public:
+    /// \name Container API
+    /** \{ */
+
+    constexpr size_t size() const noexcept {
+        return 3;
+    }
+
+    constexpr Point* begin() noexcept {
+        return &points[0];
+    }
+
+    constexpr const Point* begin() const noexcept {
+        return &points[0];
+    }
+
+    constexpr Point* end() noexcept {
+        return &points[0] + 3;
+    }
+
+    constexpr const Point* end() const noexcept {
+        return &points[0] + 3;
+    }
+
+    /** \} */
+
+  public:
+    constexpr Point center() const noexcept {
+        return (points[0] + points[1] + points[2]) / 3;
+    }
+
+    constexpr Line<Float, Dim> edge(int a, int b) const noexcept {
+        return {points[a], points[b]};
+    }
+
+    Vec normal() const noexcept requires(Dim == 3) {
+        return pre::normalize(pre::cross(
+                points[1] - points[0], //
+                points[2] - points[0]));
+    }
+
+    Float area() const noexcept {
+        if constexpr (Dim == 2) {
+            // TODO
+        }
+        else {
+            return pre::length(pre::cross(
+                    points[1] - points[0], //
+                    points[2] - points[0]));
+        }
+    }
+
+  public:
+    Point points[3];
+};
+
+template <std::floating_point Float = float>
+using Triangle2 = Triangle<Float, 2>;
+
+template <std::floating_point Float = float>
+using Triangle3 = Triangle<Float, 3>;
+
+} // namespace pre
+
+#endif // #ifndef PRE_GRAPHICS_TRIANGLE
