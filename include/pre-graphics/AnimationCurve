@@ -170,6 +170,8 @@ inline Float AnimationCurve<Float>::operator()(Float time) const {
     Float xs[4] = {x0, x0 + dx0, x1 - dx1, x1};
     Float ys[4] = {y0, y0 + m0 * dx0, y1 - m1 * dx1, y1};
     Float ds[3] = {dx0, xs[2] - xs[1], dx1};
+
+    // Solve with Newton-Raphson iteration.
     Converger<Float> converger;
     converger.max_iters = 16;
     converger.lower_bound = 0;
@@ -181,6 +183,7 @@ inline Float AnimationCurve<Float>::operator()(Float time) const {
     if (not converger(t, f, g))
         throw std::runtime_error(
                 "AnimationCurve::operator() failed to converge!");
+
     return bezier(t, ys[0], ys[1], ys[2], ys[3]);
 }
 
