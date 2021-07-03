@@ -36,11 +36,13 @@
 
 #include <pre/math>
 
+#include "_hidden/Converger.inl"
+
 namespace pre {
 
 /// An animation curve.
 ///
-/// \note 
+/// \note
 /// This is based off of animation curves appearing in applications
 /// like Blender and Unity. Weighted evaluation allows for more control,
 /// but is more computationally expensive.
@@ -164,21 +166,22 @@ inline Float AnimationCurve<Float>::operator()(Float time) const {
     Float dx1 = !(int(key1->weight_mode) & 1) ? 0.333333 : key1->in_weight;
     dx0 *= x1 - x0;
     dx1 *= x1 - x0;
-    Float x = (1 - t) * x0 + t * x1;
+    Float x = lerp(t, x0, x1);
     Float xs[4] = {x0, x0 + dx0, x1 - dx1, x1};
     Float ys[4] = {y0, y0 + m0 * dx0, y1 - m1 * dx1, y1};
     Float ds[3] = {dx0, xs[2] - xs[1], dx1};
-    Float tn = t;
-    for (int itrn = 0; itrn < 16; ++itrn) {
-        Float xn = bezier(tn, xs[0], xs[1], xs[2], xs[3]);
-        if (std::fabs(x - xn) < Float(0.001))
-            break;
-        // Newton-Raphson update.
-        tn = tn - (xn - x) / (3 * bezier(tn, ds[0], ds[1], ds[2]));
-        tn = std::fmax(tn, Float(0.0));
-        tn = std::fmin(tn, Float(1.0));
-    }
-    return bezier(tn, ys[0], ys[1], ys[2], ys[3]);
+    Converger<Float> converger;
+    converger.max_iters = 16;
+    converger.lower_bound = 0;
+    converger.upper_bound = 1;
+    converger.target = x;
+    converger.cutoff = 1e-4;
+    auto f = [&](Float u) { return bezier(u, xs[0], xs[1], xs[2], xs[3]); };
+    auto g = [&](Float u) { return bezier(u, ds[0], ds[1], ds[2]) * 3; };
+    if (not converger(t, f, g))
+        throw std::runtime_error(
+                "AnimationCurve::operator() failed to converge!");
+    return bezier(t, ys[0], ys[1], ys[2], ys[3]);
 }
 
 } // namespace pre
