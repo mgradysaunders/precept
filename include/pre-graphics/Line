@@ -97,16 +97,89 @@ struct Line : ArrayLike<Line<Float, Dim>, Array<Float, Dim>> {
         return pre::lerp(t, points[0], points[1]);
     }
 
+    constexpr Line operator()(Float t0, Float t1) const noexcept {
+        return {pre::lerp(t0, points[0], points[1]),
+                pre::lerp(t1, points[0], points[1])};
+    }
+
+    constexpr Float proj(Point p) const noexcept {
+        Vec u = p - points[0];
+        Vec v = points[1] - points[0];
+        return dot(u, v) / dot(v, v);
+    }
+
+    struct Nearest {
+        Point point = {};       ///< Point on line
+        Float t = 0;            ///< Param
+        Float dist2 = 0;        ///< Distance squared
+        Float signed_dist2 = 0; ///< Signed distance squared (2D only)
+    };
+
+    Nearest nearest(Point p) const noexcept {
+        Nearest near;
+        auto v = edge_vec();
+        auto d = p - points[0];
+        near.t = dot(v, d) / dot(v, v);
+        near.t = std::fmax(near.t, Float(0));
+        near.t = std::fmin(near.t, Float(1));
+        near.point = operator()(near.t);
+        near.dist2 = dot(d, d);
+        near.signed_dist2 = near.dist2;
+        if constexpr (Dim == 2)
+            near.signed_dist2 = std::copysign(near.dist2, dot(-cross(v), d));
+        return near;
+    }
+
+    struct Hit {
+        Point point = {}; ///< Hit point
+        Float t0 = 0;     ///< Param on this
+        Float t1 = 0;     ///< Param on other
+    };
+
+    std::optional<Hit> intersect(const Line& other) const noexcept
+            requires(Dim == 2) {
+        if constexpr (std::same_as<Float, float>) {
+            auto lhs = Line<double, Dim>(*this);
+            auto rhs = Line<double, Dim>(other);
+            auto hit = lhs.intersect(rhs);
+            if (hit)
+                return {Point(hit.point), Float(hit.t0), Float(hit.t1)};
+            else
+                return std::nullopt;
+        }
+        else {
+            Vec u = this->edge_vec();
+            Vec v = other.edge_vec();
+            Vec w = this->points[0] - other.points[0];
+            Float t0 = cross(w, v) / cross(v, u);
+            Float t1 = cross(w, u) / cross(v, u);
+            if (not(0 <= t0 and t0 < 1 and //
+                    0 <= t1 and t1 < 1))
+                return std::nullopt;
+            else {
+                // These should be the same ...
+                Point p0 = this->operator()(t0);
+                Point p1 = other.operator()(t1);
+                return Hit{(p0 + p1) * Float(0.5), t0, t1};
+            }
+        }
+    }
+
   public:
-    template <std::floating_point Other>
-    constexpr operator Ray<Other, Dim>() const noexcept {
-        return {Array<Other, Dim>(points[0]),
-                Array<Other, Dim>(points[1] - points[0]), 0, 1};
+    template <std::floating_point Other, size_t OtherDim>
+    constexpr operator Line<Other, OtherDim>() const noexcept {
+        return {Array<Other, OtherDim>(points[0]),
+                Array<Other, OtherDim>(points[1])};
+    }
+
+    template <std::floating_point Other, size_t OtherDim>
+    constexpr operator Ray<Other, OtherDim>() const noexcept {
+        return {Array<Other, OtherDim>(points[0]),
+                Array<Other, OtherDim>(points[1] - points[0]), 0, 1};
     }
 
   public:
     Point points[2];
-
 };
 
 template <std::floating_point Float = float>

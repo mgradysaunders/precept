@@ -49,6 +49,7 @@ class ImmutableBbTree {
     using Point = Array<float, Dim>;
 
     struct Node {
+        /// Bound box.
         Box box;
         union {
             /// If branch, right child offset.
@@ -67,6 +68,21 @@ class ImmutableBbTree {
         constexpr bool is_branch() const noexcept {
             return count == 0;
         }
+
+        template <typename Range>
+        constexpr auto values(const Range& range) const noexcept {
+            ASSERT(count > 0);
+            return IteratorRange(                    //
+                    std::next(range.begin(), first), //
+                    std::next(range.begin(), first + count));
+        }
+
+        void serialize(auto& serializer) {
+            serializer <=> box;
+            serializer <=> right;
+            serializer <=> count;
+            serializer <=> split_axis;
+        }
     };
 
     struct Item {
@@ -83,6 +99,39 @@ class ImmutableBbTree {
 
     void clear() {
         nodes.clear();
+    }
+
+    template <std::invocable<const Node*> Func>
+    void ray_cast(const Ray<float, Dim>& ray, Func&& func) const {
+        RayTester<Box> ray_tester(ray);
+        StaticStack<const Node*, 64> todo;
+        if (nodes.size() > 0)
+            todo.push(&nodes[0]);
+        while (not todo.empty()) {
+            const Node* node = todo.pop();
+            if (not ray_tester(node->box))
+                continue; // Skip
+
+            if (node->is_branch()) {
+                todo.push(node + 1);
+                todo.push(node + node->right);
+
+                // If ray direction is positive in splitting dimension
+                // of the branch, then reverse the traversal order of the
+                // children, so that the left child is first.
+                if (pre::signbit(ray.dir[node->split_axis]) == false)
+                    std::swap(todo[-1], todo[-2]);
+            }
+            else {
+                // Pass to leaf callback
+                if (std::invoke(func, node) == false)
+                    return;
+            }
+        }
+    }
+
+    void serialize(auto& serializer) {
+        serializer <=> nodes;
     }
 
   public:

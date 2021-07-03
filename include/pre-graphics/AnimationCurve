@@ -31,8 +31,8 @@
 #error "Precept requires >= C++20"
 #endif // #if !(__cplusplus >= 201709L)
 #pragma once
-#ifndef PRE_GRAPHICS_ANIM_CURVE
-#define PRE_GRAPHICS_ANIM_CURVE
+#ifndef PRE_GRAPHICS_ANIMATION_CURVE
+#define PRE_GRAPHICS_ANIMATION_CURVE
 
 #include <pre/math>
 
@@ -46,7 +46,7 @@ namespace pre {
 /// but is more computationally expensive.
 ///
 template <std::floating_point Float = float>
-class AnimCurve {
+class AnimationCurve {
   public:
     enum class WrapMode {
         Clamp,  ///< Clamp to end value.
@@ -101,7 +101,7 @@ class AnimCurve {
 };
 
 template <std::floating_point Float>
-inline Float AnimCurve<Float>::operator()(Float time) const {
+inline Float AnimationCurve<Float>::operator()(Float time) const {
     switch (keyframes.size()) {
     case 0: return 0;
     case 1: return keyframes.front().value;
@@ -183,4 +183,4 @@ inline Float AnimCurve<Float>::operator()(Float time) const {
 
 } // namespace pre
 
-#endif // #ifndef PRE_GRAPHICS_ANIM_CURVE
+#endif // #ifndef PRE_GRAPHICS_ANIMATION_CURVE

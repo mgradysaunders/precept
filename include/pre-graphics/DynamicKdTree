@@ -36,77 +36,43 @@
 
 #include <pre-graphics/BoundBox>
 
-#include "_hidden/NodeIterator.inl"
-
-#include "_hidden/NodeStack.inl"
-
 // TODO Redo again
 
 namespace pre {
 
-template <
-        typename Value,
-        typename Alloc,
-        std::floating_point Float,
-        size_t Dim>
-class KdTree {
+template <size_t Dim>
+class DynamicKdTree {
     static_assert(Dim == 2 or Dim == 3);
 
   public:
-    using Point = Array<Float, Dim>;
+    using Point = Array<float, Dim>;
 
-    using Box = BoundBox<Float, Dim>;
+    using Box = BoundBox<float, Dim>;
 
-    typedef size_t size_type;
+    using Int = std::int32_t;
 
-    typedef std::ptrdiff_t difference_type;
-
-    typedef std::pair<const Point, Value> value_type;
-
-    typedef value_type& reference;
-
-    typedef value_type* pointer;
-
-    typedef const value_type& const_reference;
-
-    typedef const value_type* const_pointer;
+    static constexpr Int Nil = -1;
 
     struct Node {
-        Node() = default;
+        Point point;
+        union {
+            Int parent;
+            Int next;
+        };
+        Int child0 = Nil;
+        Int child1 = Nil;
+        Int axis = 0;
+        Int height = 0;
 
-        template <typename... Args>
-        Node(Args&&... args) : value(std::forward<Args>(args)...) {
+        constexpr bool is_leaf() const noexcept {
+            return child0 == Nil;
         }
-
-        Node* next = nullptr;
-
-        Node* left = nullptr;
-
-        Node* right = nullptr;
-
-        int axis = 0;
-
-        std::optional<value_type> value = std::nullopt;
-    };
-
-    struct NodeTraits {
-        using Node = typename KdTree::Node;
-
-        static constexpr value_type& value(Node* node) noexcept {
-            return node->value.operator*();
-        }
-        static constexpr bool has_value(Node* node) noexcept {
-            return node->value.has_value();
+        constexpr bool is_branch() const noexcept {
+            return child0 != Nil;
         }
     };
 
-    typedef tree_helpers::NodeIterator<NodeTraits, 0> iterator;
-
-    typedef tree_helpers::NodeIterator<NodeTraits, 1> const_iterator;
-
-    template <bool IsDynamic>
-    using NodeStack = tree_helpers::NodeStack<Node, IsDynamic>;
-
+#if 0
   public:
     KdTree(size_t pool_size = 32768 / sizeof(Node), const Alloc& alloc = {})
         : pool_(pool_size, alloc) {
@@ -396,19 +362,12 @@ class KdTree {
         }
         return result;
     }
+#endif
 };
 
-template <
-        typename Value,
-        typename Alloc = std::allocator<Value>,
-        std::floating_point Float = float>
-using KdTree2 = KdTree<Value, Alloc, Float, 2>;
+using DynamicKdTree2 = DynamicKdTree<2>;
 
-template <
-        typename Value,
-        typename Alloc = std::allocator<Value>,
-        std::floating_point Float = float>
-using KdTree3 = KdTree<Value, Alloc, Float, 3>;
+using DynamicKdTree3 = DynamicKdTree<3>;
 
 } // namespace pre
 
