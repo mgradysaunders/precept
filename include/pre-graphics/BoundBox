@@ -276,32 +276,91 @@ using BoundBox4 = BoundBox<T, 4>;
 template <std::floating_point Float, size_t Dim>
 struct RayTester<BoundBox<Float, Dim>> {
   public:
-    RayTester(const Ray<Float, Dim>& ray)
-        : ray_ptr(&ray), dir_inv(1 / ray.dir), dir_sgn(pre::signbit(ray.dir)) {
+    using RayT = Ray<Float, Dim>;
+    using HitT = Hit<Float, Dim>;
+
+    constexpr RayTester(const RayT& r) noexcept
+        : ray(&r), dir_inv(1 / r.dir), dir_sgn(pre::signbit(r.dir)) {
     }
 
-    bool operator()(const BoundBox<Float, Dim>& box) const noexcept {
-        const Array<Float, Dim>& pos = ray_ptr->pos;
+    constexpr bool operator()(const BoundBox<Float, Dim>& box) const noexcept {
+        const Array<Float, Dim>& org = ray->org;
         constexpr Float tmin_fac = 1 - 2 * MachineEch<Float, 3>;
         constexpr Float tmax_fac = 1 + 2 * MachineEch<Float, 3>;
         auto box_min = [&](int k) { return box[dir_sgn[k]][k]; };
         auto box_max = [&](int k) { return box[1 - dir_sgn[k]][k]; };
-        Float tmin = tmin_fac * dir_inv[0] * (box_min(0) - pos[0]);
-        Float tmax = tmax_fac * dir_inv[0] * (box_max(0) - pos[0]);
+        Float tmin = tmin_fac * dir_inv[0] * (box_min(0) - org[0]);
+        Float tmax = tmax_fac * dir_inv[0] * (box_max(0) - org[0]);
         for (int k = 1; k < int(Dim); k++) {
-            Float tmink = tmin_fac * dir_inv[k] * (box_min(k) - pos[k]);
-            Float tmaxk = tmax_fac * dir_inv[k] * (box_max(k) - pos[k]);
+            Float tmink = tmin_fac * dir_inv[k] * (box_min(k) - org[k]);
+            Float tmaxk = tmax_fac * dir_inv[k] * (box_max(k) - org[k]);
             if (not(tmin < tmaxk and tmax > tmink))
                 return false;
             tmin = pre::max(tmin, tmink);
             tmax = pre::min(tmax, tmaxk);
         }
-        return tmin < ray_ptr->tmax and //
-               tmax > ray_ptr->tmin;
+        return tmin < ray->tmax and //
+               tmax > ray->tmin;
+    }
+
+    constexpr bool operator()(
+            const BoundBox<Float, Dim>& box, HitT* hit) const noexcept {
+        if (not hit)
+            return operator()(box);
+        const Array<Float, Dim>& org = ray->org;
+        constexpr Float tmin_fac = 1 - 2 * MachineEch<Float, 3>;
+        constexpr Float tmax_fac = 1 + 2 * MachineEch<Float, 3>;
+        auto box_min = [&](int k) { return box[dir_sgn[k]][k]; };
+        auto box_max = [&](int k) { return box[1 - dir_sgn[k]][k]; };
+        Float bmin = box_min(0);
+        Float bmax = box_max(0);
+        Float tmin = tmin_fac * dir_inv[0] * (bmin - org[0]);
+        Float tmax = tmax_fac * dir_inv[0] * (bmax - org[0]);
+        int kmin = 0;
+        int kmax = 0;
+        for (int k = 1; k < int(Dim); k++) {
+            Float bmink = box_min(k);
+            Float bmaxk = box_max(k);
+            Float tmink = tmin_fac * dir_inv[k] * (bmink - org[k]);
+            Float tmaxk = tmax_fac * dir_inv[k] * (bmaxk - org[k]);
+            if (not(tmin < tmaxk and tmax > tmink))
+                return false;
+            if (tmin < tmink) {
+                tmin = tmink;
+                bmin = bmink;
+                kmin = k;
+            }
+            if (tmax > tmaxk) {
+                tmax = tmaxk;
+                bmax = bmaxk;
+                kmax = k;
+            }
+        }
+        if (not(tmin < ray->tmax and //
+                tmax > ray->tmin))
+            return false;
+
+        // Initialize hit information.
+        hit->normal = {};
+        hit->u = 0;
+        hit->v = 0;
+        if (ray->is_in_range(tmin)) {
+            ray->tmax = tmin;
+            hit->point = ray->point_tmax();
+            hit->point[kmin] = bmin;
+            hit->normal[kmin] = dir_sgn[kmin] ? -1 : +1;
+        }
+        else {
+            ray->tmax = tmax;
+            hit->point = ray->point_tmax();
+            hit->point[kmax] = bmax;
+            hit->normal[kmax] = dir_sgn[kmax] ? +1 : -1;
+        }
+        return true;
     }
 
   public:
-    const Ray<Float, Dim>* ray_ptr = nullptr;
+    const RayT* ray = nullptr;
     Array<Float, Dim> dir_inv = {};
     Array<short, Dim> dir_sgn = {};
 };

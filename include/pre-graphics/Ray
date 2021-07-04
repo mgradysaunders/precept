@@ -39,6 +39,27 @@
 
 namespace pre {
 
+template <std::floating_point Float, size_t Dim>
+struct Hit {
+    /// Point.
+    Array<Float, Dim> point;
+
+    /// Normal direction, may be non-normalized.
+    Array<Float, Dim> normal;
+
+    /// Surface coordinate U.
+    Float u = 0;
+
+    /// Surface coordinate V (3D only).
+    Float v = 0;
+};
+
+template <std::floating_point Float = float>
+using Hit2 = Hit<Float, 2>;
+
+template <std::floating_point Float = float>
+using Hit3 = Hit<Float, 3>;
+
 template <typename>
 struct RayTester;
 
@@ -47,8 +68,8 @@ class Ray {
   public:
     static_assert(Dim == 2 or Dim == 3);
 
-    /// Position.
-    Array<Float, Dim> pos;
+    /// Origin.
+    Array<Float, Dim> org;
 
     /// Direction.
     Array<Float, Dim> dir;
@@ -63,31 +84,44 @@ class Ray {
     constexpr Ray() noexcept = default;
 
     constexpr Ray(
-            const Array<Float, Dim>& p, //
+            const Array<Float, Dim>& o, //
             const Array<Float, Dim>& d) noexcept
-        : pos(p), dir(d) {
+        : org(o), dir(d) {
     }
 
     constexpr Ray(
-            const Array<Float, Dim>& p,
+            const Array<Float, Dim>& o,
             const Array<Float, Dim>& d,
             Float t0,
             Float t1) noexcept
-        : pos(p), dir(d), tmin(t0), tmax(t1) {
+        : org(o), dir(d), tmin(t0), tmax(t1) {
     }
 
   public:
     template <typename Any>
     constexpr bool test(const Any& any) const {
-        return RayTester<Any>(*this).test(any);
+        return RayTester<Any>(*this)(any);
+    }
+
+    template <typename Any>
+    constexpr bool test(const Any& any, Hit<Float, Dim>* hit) const {
+        return RayTester<Any>(*this)(any, hit);
     }
 
     constexpr bool is_in_range(Float t) const noexcept {
-        return tmin < t && t < tmax;
+        return tmin < t and t < tmax;
+    }
+
+    constexpr Array<Float, Dim> point_tmin() const noexcept {
+        return org + dir * tmin;
+    }
+
+    constexpr Array<Float, Dim> point_tmax() const noexcept {
+        return org + dir * tmax;
     }
 
     constexpr Array<Float, Dim> operator()(Float t) const noexcept {
-        return pos + dir * t;
+        return org + dir * t;
     }
 };
 
