@@ -31,8 +31,8 @@
 #error "Precept requires >= C++20"
 #endif // #if !(__cplusplus >= 201709L)
 #pragma once
-#ifndef PRE_GRAPHICS_LINE_SEGMENT
-#define PRE_GRAPHICS_LINE_SEGMENT
+#ifndef PRE_GRAPHICS_LINE
+#define PRE_GRAPHICS_LINE
 
 #include <pre-graphics/BoundBox>
 #include <pre-graphics/Ray>
@@ -189,4 +189,4 @@ struct RayTester<Line<Float, 2>> {
 
 } // namespace pre
 
-#endif // #ifndef PRE_GRAPHICS_LINE_SEGMENT
+#endif // #ifndef PRE_GRAPHICS_LINE
