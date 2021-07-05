@@ -63,7 +63,8 @@ constexpr T nthpow(T x, int n) noexcept {
 /// then `c = d`.
 ///
 template <typename T, typename U, typename... V>
-[[gnu::always_inline]] constexpr void chain_assign(T& a, U&& b, V&&... c) noexcept {
+[[gnu::always_inline]] constexpr void chain_assign(
+        T& a, U&& b, V&&... c) noexcept {
     a = std::move(b);
     if constexpr (sizeof...(V) > 0) {
         chain_assign(b, std::forward<V>(c)...);
@@ -78,7 +79,8 @@ template <typename T, typename U, typename... V>
 /// `b = c`, `c = tmp`.
 ///
 template <typename T, typename U, typename... V>
-[[gnu::always_inline]] constexpr void cycle_assign(T& a, U& b, V&... c) noexcept {
+[[gnu::always_inline]] constexpr void cycle_assign(
+        T& a, U& b, V&... c) noexcept {
     T t = std::move(a);
     chain_assign(a, b, c..., t);
 }
@@ -646,6 +648,18 @@ inline T float_decr(T x) noexcept {
     }
 }
 
+template <std::floating_point T>
+inline bool relatively_tiny(T a, T b) noexcept {
+    a = std::fabs(a);
+    b = std::fabs(b);
+    return (a + b) == b;
+}
+
+template <std::floating_point T>
+inline bool relatively_huge(T a, T b) noexcept {
+    return relatively_tiny(b, a);
+}
+
 /// Fast inverse square root.
 template <std::floating_point T>
 [[gnu::always_inline]] inline T fast_inv_sqrt(T x) noexcept {
@@ -891,6 +905,32 @@ inline T erfinv(T y) noexcept {
         p = pre::fma(w, p, T(+2.83297682));
     }
     return p * y;
+}
+
+/// Quadratic roots.
+template <std::floating_point T>
+inline bool quadratic(T a, T b, T c, T& x0, T& x1) {
+    if (relatively_tiny(a, b)) {
+        x0 = x1 = -c / b;
+        return std::isfinite(x0);
+    }
+    else {
+        b /= a;
+        c /= a;
+        if (not std::isfinite(b) or //
+            not std::isfinite(c))
+            return false;
+        T d = b * b - 4 * c;
+        if (not std::isfinite(d))
+            d = b * (b - 4 * (c / b)); // Try again
+        if (not std::isfinite(d) or d < 0)
+            return false;
+        x0 = -T(0.5) * (b + std::copysign(std::sqrt(d), b));
+        x1 = c / x0;
+        if (x0 > x1)
+            std::swap(x0, x1);
+        return true;
+    }
 }
 
 /** \} */
