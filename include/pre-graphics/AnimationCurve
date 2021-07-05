@@ -27,9 +27,6 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 /*-*-*-*-*-*-*/
-#if !(__cplusplus >= 201709L)
-#error "Precept requires >= C++20"
-#endif // #if !(__cplusplus >= 201709L)
 #pragma once
 #ifndef PRE_GRAPHICS_ANIMATION_CURVE
 #define PRE_GRAPHICS_ANIMATION_CURVE
