@@ -291,6 +291,76 @@ using Pcg64 = PcgXshrrEngine<
         6364136223846793005ULL,
         1442695040888963407ULL>;
 
+template <std::floating_point Float>
+struct UniformDistribution {
+  public:
+    constexpr UniformDistribution() noexcept = default;
+    constexpr UniformDistribution(Float a_, Float b_) noexcept : a(a_), b(b_) {
+        if (b < a)
+            std::swap(a, b);
+    }
+    Float pdf(Float x) const noexcept {
+        return a <= x and x < b ? 1 / (b - a) : 0;
+    }
+    Float cdf(Float x) const noexcept {
+        x -= a;
+        x /= b - a;
+        x = std::fmax(x, Float(0));
+        x = std::fmin(x, Float(1));
+        return x;
+    }
+    Float cdf_inv(Float u) const noexcept {
+        return (1 - u) * a + u * b;
+    }
+
+  public:
+    Float a = 0;
+    Float b = 1;
+};
+
+template <typename T, typename U>
+UniformDistribution(T, U) -> UniformDistribution<to_floating_point_t<T, U>>;
+
+template <std::floating_point Float>
+struct NormalDistribution {
+  public:
+    constexpr NormalDistribution() noexcept = default;
+    constexpr NormalDistribution(Float mu_, Float sigma_) noexcept
+        : mu(mu_), sigma(sigma_) {
+    }
+    Float pdf(Float x) const noexcept {
+        x = (x - mu) / sigma;
+        x *= x;
+        x *= -Float(0.5);
+        Float f = Float(0.3989422804014327) * std::exp(x) / sigma;
+        return std::isfinite(f) ? f : 0;
+    }
+    Float cdf(Float x) const noexcept {
+        Float f = std::fma(
+                Float(0.5), std::erf(Float(M_SQRT1_2) * (x - mu) / sigma),
+                Float(0.5));
+        if (std::isfinite(f)) {
+            f = std::fmax(f, Float(0));
+            f = std::fmin(f, Float(1));
+            return f;
+        }
+        else
+            return x < mu ? 0 : 1;
+    }
+    Float cdf_inv(Float u) const noexcept {
+        u = std::fmax(u, Float(0));
+        u = std::fmin(u, Float(1));
+        return std::fma(Float(M_SQRT2) * sigma, erfinv(2 * u - 1), mu);
+    }
+
+  public:
+    Float mu = 0;
+    Float sigma = 1;
+};
+
+template <typename T, typename U>
+NormalDistribution(T, U) -> NormalDistribution<to_floating_point_t<T, U>>;
+
 } // namespace pre
 
 #endif // #ifndef PRE_RANDOM
