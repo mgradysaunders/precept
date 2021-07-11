@@ -323,6 +323,10 @@ inline Vec3<double> LambertianMicrosurface::phase_sample(
     return normalize(dot(Mat3<double>::build_onb(wm), wi));
 }
 
+// TODO DielectricMicrosurface
+
+// TODO ConductiveMicrosurface
+
 } // namespace pre
 
 #endif // #ifndef PRE_GRAPHICS_MICROSURFACE
