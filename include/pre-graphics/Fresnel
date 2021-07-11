@@ -36,8 +36,11 @@
 
 namespace pre {
 
+template <typename>
+struct Fresnel;
+
 template <std::floating_point Float>
-struct FresnelDiel {
+struct Fresnel<Float> {
     Float cos_thetat = 0;
     Float rs = 0, rp = 0;
     Float ts = 0, tp = 0;
@@ -46,8 +49,8 @@ struct FresnelDiel {
     bool tir = false;
 
   public:
-    FresnelDiel() noexcept = default;
-    FresnelDiel(Float eta, Float cos_thetai) noexcept {
+    Fresnel() noexcept = default;
+    Fresnel(Float eta, Float cos_thetai) noexcept {
         Float cos2_thetat = 1 - eta * eta * (1 - cos_thetai * cos_thetai);
         if (!(cos2_thetat > 0)) {
             rs = rp = 1;
@@ -68,8 +71,8 @@ struct FresnelDiel {
     }
 };
 
-template <typename T, typename U>
-FresnelDiel(T, U) -> FresnelDiel<to_floating_point_t<T, U>>;
+template <concepts::arithmetic T, concepts::arithmetic U>
+Fresnel(T, U) -> Fresnel<to_floating_point_t<T, U>>;
 
 } // namespace pre
 
