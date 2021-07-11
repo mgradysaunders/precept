@@ -33,25 +33,295 @@
 
 #include <pre/Array>
 #include <pre/math>
+#include <pre-graphics/Fresnel>
 
 namespace pre {
 
 namespace microsurface {
 
 constexpr double pi = pre::numeric_constants<double>::M_pi();
-
-constexpr double pi_inv = pre::numeric_constants<double>::M_1_pi();
-
-constexpr double sqrtpi_inv = pre::numeric_constants<double>::M_2_sqrtpi() / 2;
+constexpr double inv_pi = pre::numeric_constants<double>::M_1_pi();
+constexpr double inv_sqrtpi = pre::numeric_constants<double>::M_2_sqrtpi() / 2;
 
 } // namespace microsurface
 
 } // namespace pre
 
 #include "_hidden/Converger.inl"
-#include "_hidden/MicrosurfaceHeight.inl"
-#include "_hidden/MicrosurfaceSlope.inl"
+#include "_hidden/_microsurface/Height.inl"
+#include "_hidden/_microsurface/Slope.inl"
 
-namespace pre {} // namespace pre
+namespace pre {
+
+class Microsurface {
+  public:
+    virtual ~Microsurface() = default;
+
+    double Lambda(Vec3<double> wo) const noexcept;
+
+    double Aperp(Vec3<double> wo) const noexcept;
+
+    double P22(Vec2<double> m) const noexcept;
+
+    double D(Vec3<double> wm) const noexcept;
+
+    double Dwo(Vec3<double> wo, Vec3<double> wm) const noexcept;
+
+    Vec3<double> Dwo_sample(
+            double u0, double u1, const Vec3<double>& wo) const noexcept;
+
+    double G1(Vec3<double> wo) const noexcept;
+
+    double G1(Vec3<double> wo, double h0) const noexcept;
+
+    double h_sample(double u, Vec3<double> wo, double h0) const noexcept;
+
+    struct Result {
+        double f = 0;
+        double fpdf = 0;
+    };
+
+    Result simulate(
+            const Vec3<double>& wo,
+            const Vec3<double>& wi,
+            int min_order = 0,
+            int max_order = 0) const noexcept {
+        double cos_factor = std::abs(wi[2] / wo[2]);
+        Result fwd = simulate_path(wo, wi, min_order, max_order, false);
+        Result rev = simulate_path(wi, wo, min_order, max_order, true);
+        return {fwd.f + rev.f * cos_factor, fwd.fpdf + rev.fpdf * cos_factor};
+    }
+
+  protected:
+    virtual double phase(
+            const Vec3<double>& wo,
+            const Vec3<double>& wi,
+            bool wo_outside,
+            bool wi_outside,
+            double* energy,
+            bool importance_mode) const noexcept = 0;
+
+    virtual Vec3<double> phase_sample(
+            Vec3<double> wo,
+            bool wo_outside,
+            bool* wi_outside,
+            double* energy,
+            bool importance_mode) const noexcept = 0;
+
+  private:
+    Result simulate_path(
+            const Vec3<double>& wo,
+            const Vec3<double>& wi,
+            int min_order = 0,
+            int max_order = 0,
+            bool importance_mode = false) const noexcept;
+
+  public:
+    /// Possibly anisotropic roughness.
+    Vec2<double> alpha = {0.5, 0.5};
+
+    /// Height distribution.
+    const microsurface::Height* height = &microsurface::uniform_height;
+
+    /// Slope distribution.
+    const microsurface::Slope* slope = &microsurface::trowbridge_reitz_slope;
+
+    /// Random number generator for stochastic evaluation.
+    mutable Pcg32 random = {};
+};
+
+inline double Microsurface::Lambda(Vec3<double> wo) const noexcept {
+    return slope->Lambda11({alpha[0] * wo[0], alpha[1] * wo[1], wo[2]});
+}
+
+inline double Microsurface::Aperp(Vec3<double> wo) const noexcept {
+    return slope->Aperp11({alpha[0] * wo[0], alpha[1] * wo[1], wo[2]});
+}
+
+inline double Microsurface::P22(Vec2<double> m) const noexcept {
+    return finite_or_zero(slope->P11(m / alpha) / alpha.prod());
+}
+
+inline double Microsurface::D(Vec3<double> wm) const noexcept {
+    if (std::signbit(wm[2]))
+        return 0;
+    double cos_thetam = clamp_abs(wm[2], 1.0);
+    Vec2<double> m = {
+            -wm[0] / cos_thetam, //
+            -wm[1] / cos_thetam};
+    return finite_or_zero(P22(m) / nthpow(cos_thetam, 4));
+}
+
+inline double Microsurface::Dwo(
+        Vec3<double> wo, Vec3<double> wm) const noexcept {
+    if (std::signbit(wm[2]))
+        return 0;
+    double numer = dot(wo, wm);
+    double denom = Aperp(wo);
+    if (std::signbit(numer) or //
+        std::signbit(denom))
+        return 0;
+    return finite_or_zero(numer / denom * D(wm));
+}
+
+inline Vec3<double> Microsurface::Dwo_sample(
+        double u0, double u1, const Vec3<double>& wo) const noexcept {
+    Vec3<double> wo11 = normalize(
+            alpha[0] * wo[0], //
+            alpha[1] * wo[1], wo[2]);
+    Vec2<double> m11 = slope->P11_sample(u0, u1, wo11[2]);
+    double phi = std::atan2(wo11[1], wo11[0]);
+    double sin_phi = std::sin(phi);
+    double cos_phi = std::cos(phi);
+    Vec2<double> m = {
+            alpha[0] * (cos_phi * m11[0] - sin_phi * m11[1]),
+            alpha[1] * (sin_phi * m11[0] + cos_phi * m11[1])};
+    if (not pre::isfinite(m).all())
+        return wo[2] == 0 ? normalize(wo) : Vec3<double>{0, 0, 1};
+    return normalize(-m[0], -m[1], 1.0);
+}
+
+inline double Microsurface::G1(Vec3<double> wo) const noexcept {
+    if (std::signbit(wo[2]))
+        return 0;
+    return 1 / (1 + Lambda(wo));
+}
+
+inline double Microsurface::G1(Vec3<double> wo, double h0) const noexcept {
+    if (std::signbit(wo[2]))
+        return 0;
+    return std::pow(height->C1(h0), Lambda(wo));
+}
+
+inline double Microsurface::h_sample(
+        double u, Vec3<double> wo, double h0) const noexcept {
+    if (std::abs(wo[2]) < 0.00001)
+        return h0;
+    else if (wo[2] < -0.99999)
+        return height->C1inv(height->C1(h0) * u);
+    else if (wo[2] > +0.99999 or u > 1 - G1(wo, h0))
+        return Inf<double>; // Exit
+    else
+        return height->C1inv(height->C1(h0) / std::pow(1 - u, 1 / Lambda(wo)));
+}
+
+inline Microsurface::Result Microsurface::simulate_path(
+        const Vec3<double>& wo,
+        const Vec3<double>& wi,
+        int min_order,
+        int max_order,
+        bool importance_mode) const noexcept {
+    Result result;
+    double energyk = 1;
+    double heightk = 1 + height->C1inv(0.99999);
+    Vec3<double> wk = -wo;
+    bool wo_outside = wo[2] > 0;
+    bool wi_outside = wi[2] > 0;
+    bool wk_outside = wo_outside;
+    if (!wk_outside)
+        heightk = -heightk; // Flip height
+    double p0 = 0;
+    for (int order = 0; max_order <= 0 or order < max_order; order++) {
+        float u = generate_canonical<float>(random);
+        heightk = wk_outside //
+                          ? +h_sample(u, +wk, +heightk)
+                          : -h_sample(u, -wk, -heightk);
+        if (std::isinf(heightk))
+            break;
+        if (order >= min_order) {
+            double ek = energyk;
+            double pk =
+                    phase(-wk, wi,    //
+                          wk_outside, //
+                          wi_outside, //
+                          &ek, importance_mode);
+            double fk = pk;
+            fk *= wi_outside ? G1(+wi, +heightk) : G1(-wi, -heightk);
+            fk *= order == 0 ? 0.5 : p0 / (p0 + pk); // MIS weight.
+            ek *= fk;
+            if (std::isfinite(fk)) {
+                result.f += ek;
+                result.fpdf += fk;
+            }
+        }
+        wk = phase_sample(
+                -wk, wk_outside, &wk_outside, &energyk, importance_mode);
+        // Remember MIS weight term.
+        if (order == 0)
+            p0 = phase(
+                    wk, wo, wk_outside, wo_outside, nullptr, importance_mode);
+        // Safety check.
+        if (not pre::isfinite(heightk) or //
+            not pre::isfinite(energyk) or energyk == 0 or wk[2] == 0)
+            break;
+    }
+    return result;
+}
+
+class LambertianMicrosurface final : public Microsurface {
+  public:
+    double phase(
+            const Vec3<double>& wo,
+            const Vec3<double>& wi,
+            bool wo_outside,
+            bool wi_outside,
+            double* energy,
+            bool importance_mode) const noexcept;
+
+    Vec3<double> phase_sample(
+            Vec3<double> wo,
+            bool wo_outside,
+            bool* wi_outside,
+            double* energy,
+            bool importance_mode) const noexcept;
+
+  public:
+    double R0 = 0.8;
+    double T0 = 0.0;
+};
+
+inline double LambertianMicrosurface::phase(
+        const Vec3<double>& wo,
+        const Vec3<double>& wi,
+        bool wo_outside,
+        bool wi_outside,
+        double* energy,
+        bool) const noexcept {
+    using microsurface::inv_pi;
+    float u0 = generate_canonical<float>(random);
+    float u1 = generate_canonical<float>(random);
+    Vec3<double> wm = wo_outside //
+                              ? +Dwo_sample(u0, u1, +wo)
+                              : -Dwo_sample(u0, u1, -wo);
+    if (energy)
+        *energy *= R0 + T0;
+    return wo_outside == wi_outside //
+                   ? inv_pi * pre::max(dot(+wm, wi), 0.0) * R0 / (R0 + T0)
+                   : inv_pi * pre::max(dot(-wm, wi), 0.0) * T0 / (R0 + T0);
+}
+
+inline Vec3<double> LambertianMicrosurface::phase_sample(
+        Vec3<double> wo,
+        bool wo_outside,
+        bool* wi_outside,
+        double* energy,
+        bool) const noexcept {
+    float u0 = generate_canonical<float>(random);
+    float u1 = generate_canonical<float>(random);
+    Vec3<double> wm = wo_outside //
+                              ? +Dwo_sample(u0, u1, +wo)
+                              : -Dwo_sample(u0, u1, -wo);
+    Vec3<double> wi = Vec3<double>::cosine_hemisphere_pdf_sample(
+            {generate_canonical<float>(random),
+             generate_canonical<float>(random)});
+    if (generate_canonical<float>(random) < R0 / (R0 + T0))
+        *wi_outside = wo_outside;
+    else
+        *wi_outside = not wo_outside, wi[2] *= -1;
+    *energy *= R0 + T0;
+    return normalize(dot(Mat3<double>::build_onb(wm), wi));
+}
+
+} // namespace pre
 
 #endif // #ifndef PRE_GRAPHICS_MICROSURFACE

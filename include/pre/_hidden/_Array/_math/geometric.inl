@@ -186,10 +186,26 @@ inline auto normalize(const Array<T, N>& arr) noexcept {
     return res;
 }
 
-/// Normalize by Euclidean length.
+/// Normalize by Euclidean length, component version.
+template <
+        concepts::arithmetic_or_complex T,
+        concepts::arithmetic_or_complex... Ts>
+inline auto normalize(T x0, Ts... xs) noexcept {
+    return normalize(Array{x0, xs...});
+}
+
+/// Fast (unsafe) normalize by Euclidean length.
 template <concepts::arithmetic_or_complex T, size_t N>
 inline auto fast_normalize(const Array<T, N>& arr) noexcept {
     return arr * (to_floating_point_t<T>(1) / pre::sqrt(length2(arr)));
+}
+
+/// Fast (unsafe) normalize by Euclidean length, component version.
+template <
+        concepts::arithmetic_or_complex T,
+        concepts::arithmetic_or_complex... Ts>
+inline auto fast_normalize(T x0, Ts... xs) noexcept {
+    return fast_normalize(Array{x0, xs...});
 }
 
 /// Angle between vectors in 2-dimensions.

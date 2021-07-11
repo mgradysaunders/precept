@@ -30,7 +30,7 @@ class TrowbridgeReitzSlope final : public Slope {
     }
 
     double P11(Vec2<double> m) const noexcept {
-        return pi_inv * nthpow(1 + dot(m, m), 2);
+        return inv_pi * nthpow(1 + dot(m, m), 2);
     }
 
     Vec2<double> P11_sample(
@@ -74,21 +74,22 @@ class BeckmannSlope final : public Slope {
     double Lambda11(Vec3<double> wo) const noexcept {
         double r = std::hypot(wo[0], wo[1]);
         double a = wo[2] / r;
-        return 0.5 * sqrtpi_inv * std::exp(-a * a) / a - 0.5 * std::erfc(a);
+        return 0.5 * inv_sqrtpi * std::exp(-a * a) / a - 0.5 * std::erfc(a);
     }
 
     double Aperp11(Vec3<double> wo) const noexcept {
         double r = std::hypot(wo[0], wo[1]);
         double a = wo[2] / r;
-        return 0.5 * sqrtpi_inv * std::exp(-a * a) * r +
+        return 0.5 * inv_sqrtpi * std::exp(-a * a) * r +
                0.5 * wo[2] * std::erfc(-a);
     }
 
     double P11(Vec2<double> m) const noexcept {
-        return pi_inv * std::exp(-dot(m, m));
+        return inv_pi * std::exp(-dot(m, m));
     }
 
-    Vec2<double> P11_sample(double u0, double u1, double cos_thetao) {
+    Vec2<double> P11_sample(
+            double u0, double u1, double cos_thetao) const noexcept {
         if (cos_thetao > 0.99999) {
             double r = std::sqrt(-std::log1p(-u0));
             double phi = 2 * pi * u1;
@@ -96,52 +97,51 @@ class BeckmannSlope final : public Slope {
                     r * std::sin(phi)};
         }
         else {
+            u0 = std::fmax(u0, 1e-6);
             double sin_thetao = pre::sqrt(1 - cos_thetao * cos_thetao);
             double cot_thetao = cos_thetao / sin_thetao;
             auto c11 = [=](double a) {
-                return 0.5 * sqrtpi_inv * sin_thetao * std::exp(-a * a) +
+                return 0.5 * inv_sqrtpi * sin_thetao * std::exp(-a * a) +
                        0.5 * cos_thetao * std::erfc(-a);
             };
-            double aperp = c11(cot_thetao);
-            double cnorm = 1 / aperp;
-            if (aperp < 0.00001 or not std::isfinite(aperp))
+            double cnorm = 1 / c11(cot_thetao);
+            if (cnorm > 1e+6 or not std::isfinite(cnorm))
                 return {};
-
-            // Newton-Raphson iteration.
-            double ymin = -0.99999;
-            double ymax = std::erf(cot_thetao);
-            if (ymax < ymin)
-                ymax = ymin;
-            double y = ymin / 2 + ymax / 2;
-            while (ymax - ymin > 0.00001) {
-                double a = erfinv(y); // y = erf(a)
-                double c = (a >= cot_thetao ? 1 : cnorm * c11(a)) - u0;
-                if (std::fabs(c) <= 0.00001)
-                    break;
-                if (c < 0) {
-                    if (ymin != y)
-                        ymin = y;
-                    else
-                        break;
-                }
-                else {
-                    if (ymax != y)
-                        ymax = y;
-                    else
-                        break;
-                }
-                y -= c / (0.5 * cnorm * (cos_thetao - a * sin_thetao));
-                if (not(ymin <= y and y <= ymax))
-                    y = ymin / 2 + ymax / 2; // Recenter.
-            }
-            y = std::fmax(y, ymin);
-            y = std::fmin(y, ymax);
-            double m0 = erfinv(y);
-            double m1 = erfinv(2 * u1 - 1);
-            return {m0, m1};
+            double xmin = -1;
+            double xmax = std::erf(cot_thetao);
+            Converger<double> converger;
+            converger.max_iters = 10;
+            converger.lower_bound = xmin;
+            converger.upper_bound = xmax;
+            converger.target = u0;
+            converger.cutoff = 1e-6;
+            auto f = [&](double x) {
+                double a = erfinv(x);
+                return x >= cot_thetao ? 1 : cnorm * c11(a);
+            };
+            auto g = [&](double x) {
+                double a = erfinv(x);
+                return cnorm * (cos_thetao - a * sin_thetao) / 2;
+            };
+            // Improved initial guess lifted from PBRT-v3 source.
+            double thetao = std::acos(cos_thetao);
+            double x = -0.0564;
+            x = std::fma(thetao, x, +0.4265);
+            x = std::fma(thetao, x, -0.876);
+            x = std::fma(thetao, x, +1.0);
+            x = xmax - (1 + xmax) * std::pow(1 - u0, x);
+            // Do numerical inversion.
+            if (converger(x, f, g))
+                return {erfinv(x), //
+                        erfinv(2 * u1 - 1)};
         }
+        return {};
     }
 };
+
+inline TrowbridgeReitzSlope trowbridge_reitz_slope;
+
+inline BeckmannSlope beckmann_slope;
 
 } // namespace microsurface
 

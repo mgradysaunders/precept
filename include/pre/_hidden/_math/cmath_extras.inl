@@ -49,8 +49,14 @@ constexpr T nthpow(T x, int n) noexcept {
     }
     else {
         T y = 1;
-        while (n-- > 0)
-            y *= x;
+        while (1) {
+            if (n & 1)
+                y *= x;
+            n >>= 1;
+            if (n == 0)
+                break;
+            x *= x;
+        }
         return y;
     }
 }
@@ -521,22 +527,32 @@ template <std::integral T, std::integral... Ts>
 /// \name Floating point helpers
 /** \{ */
 
-template <std::floating_point Float>
-inline Float frepeat(Float x, Float a, Float b) {
+template <std::floating_point T>
+inline T finite_or(T x, T x0) noexcept {
+    return std::isfinite(x) ? x : x0;
+}
+
+template <std::floating_point T>
+inline T finite_or_zero(T x) noexcept {
+    return finite_or(x, T(0));
+}
+
+template <std::floating_point T>
+inline T frepeat(T x, T a, T b) noexcept {
     x -= a;
     b -= a;
-    Float r = std::remainder(x, b);
+    T r = std::remainder(x, b);
     if (r < 0)
         r += b;
     return r + a;
 }
 
-template <std::floating_point Float>
-inline Float fmirror(Float x, Float a, Float b) {
+template <std::floating_point T>
+inline T fmirror(T x, T a, T b) noexcept {
     x -= a;
     b -= a;
     int q = 0;
-    Float r = std::remquo(x, b, &q);
+    T r = std::remquo(x, b, &q);
     if (r < 0) {
         r += b;
         q++;
@@ -909,7 +925,7 @@ inline T erfinv(T y) noexcept {
 
 /// Quadratic roots.
 template <std::floating_point T>
-inline bool quadratic(T a, T b, T c, T& x0, T& x1) {
+inline bool quadratic(T a, T b, T c, T& x0, T& x1) noexcept {
     if (relatively_tiny(a, b)) {
         x0 = x1 = -c / b;
         return std::isfinite(x0);

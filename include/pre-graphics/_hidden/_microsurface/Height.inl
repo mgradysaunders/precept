@@ -42,6 +42,10 @@ class NormalHeight final : public Height {
     }
 };
 
+inline UniformHeight uniform_height;
+
+inline NormalHeight normal_height;
+
 } // namespace microsurface
 
 } // namespace pre
