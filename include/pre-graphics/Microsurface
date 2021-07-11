@@ -112,9 +112,9 @@ class Microsurface {
     Result simulate_path(
             const Vec3<double>& wo,
             const Vec3<double>& wi,
-            int min_order = 0,
-            int max_order = 0,
-            bool importance_mode = false) const noexcept;
+            int min_order,
+            int max_order,
+            bool importance_mode) const noexcept;
 
   public:
     /// Possibly anisotropic roughness.
@@ -311,9 +311,10 @@ inline Vec3<double> LambertianMicrosurface::phase_sample(
     Vec3<double> wm = wo_outside //
                               ? +Dwo_sample(u0, u1, +wo)
                               : -Dwo_sample(u0, u1, -wo);
-    Vec3<double> wi = Vec3<double>::cosine_hemisphere_pdf_sample(
-            {generate_canonical<float>(random),
-             generate_canonical<float>(random)});
+    Vec3<double> wi = //
+            Vec3<double>::cosine_hemisphere_pdf_sample(
+                    {generate_canonical<float>(random),
+                     generate_canonical<float>(random)});
     if (generate_canonical<float>(random) < R0 / (R0 + T0))
         *wi_outside = wo_outside;
     else
