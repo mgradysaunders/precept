@@ -88,6 +88,8 @@
 
 #include "_hidden/_meta/ArrayLike.inl"
 
+#include "_hidden/_meta/size.inl"
+
 #include "_hidden/_meta/type_list.inl"
 
 #include "_hidden/_meta/Variant.inl"

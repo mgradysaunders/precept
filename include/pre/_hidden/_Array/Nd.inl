@@ -44,7 +44,7 @@ class NdArray {
 
     NdArray& operator=(NdArray&&) = default;
 
-    // TODO 
+    // TODO
 
   public:
     /// \name Container API
@@ -210,6 +210,11 @@ class NdArray {
     template <std::integral Int>
     const_reference at(Int pos) const {
         return const_cast<NdArray&>(*this).at(pos);
+    }
+
+    void swap(NdArray& other) {
+        dims_.swap(other.dims_);
+        vals_.swap(other.vals_);
     }
 
     /** \} */

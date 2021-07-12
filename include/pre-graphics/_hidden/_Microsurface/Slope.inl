@@ -30,7 +30,7 @@ class TrowbridgeReitzSlope final : public Slope {
     }
 
     double P11(Vec2<double> m) const noexcept {
-        return inv_pi * nthpow(1 + dot(m, m), 2);
+        return inv_pi / nthpow(1 + dot(m, m), 2);
     }
 
     Vec2<double> P11_sample(

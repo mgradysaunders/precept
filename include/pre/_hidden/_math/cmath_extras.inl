@@ -8,13 +8,13 @@ namespace pre {
 
 /// Analogous to `std::min()`, except only for numbers.
 template <concepts::arithmetic_or_enum T, concepts::arithmetic_or_enum U>
-[[gnu::always_inline]] constexpr auto min(T x, U y) noexcept {
+constexpr auto min(T x, U y) noexcept {
     return x < y ? x : y;
 }
 
 /// Analogous to `std::max()`, except only for numbers.
 template <concepts::arithmetic_or_enum T, concepts::arithmetic_or_enum U>
-[[gnu::always_inline]] constexpr auto max(T x, U y) noexcept {
+constexpr auto max(T x, U y) noexcept {
     return x < y ? y : x;
 }
 
@@ -25,7 +25,7 @@ template <concepts::arithmetic_or_enum T, concepts::arithmetic_or_enum U>
 /// \param[in] b  Range maximum.
 ///
 template <concepts::arithmetic_or_enum T>
-[[gnu::always_inline]] constexpr T clamp(
+constexpr T clamp(
         T x, std::type_identity_t<T> a, std::type_identity_t<T> b) noexcept {
     return pre::min(pre::max(x, a), b);
 }
@@ -36,8 +36,7 @@ template <concepts::arithmetic_or_enum T>
 /// \param[in] b  Range maximum.
 ///
 template <concepts::arithmetic_or_enum T>
-[[gnu::always_inline]] constexpr T clamp_abs(
-        T x, std::type_identity_t<T> b) noexcept {
+constexpr T clamp_abs(T x, std::type_identity_t<T> b) noexcept {
     return clamp(x, -b, b);
 }
 
@@ -69,12 +68,10 @@ constexpr T nthpow(T x, int n) noexcept {
 /// then `c = d`.
 ///
 template <typename T, typename U, typename... V>
-[[gnu::always_inline]] constexpr void chain_assign(
-        T& a, U&& b, V&&... c) noexcept {
+constexpr void chain_assign(T& a, U&& b, V&&... c) noexcept {
     a = std::move(b);
-    if constexpr (sizeof...(V) > 0) {
+    if constexpr (sizeof...(V) > 0)
         chain_assign(b, std::forward<V>(c)...);
-    }
 }
 
 /// Cycle-assign variables.
@@ -85,8 +82,7 @@ template <typename T, typename U, typename... V>
 /// `b = c`, `c = tmp`.
 ///
 template <typename T, typename U, typename... V>
-[[gnu::always_inline]] constexpr void cycle_assign(
-        T& a, U& b, V&... c) noexcept {
+constexpr void cycle_assign(T& a, U& b, V&... c) noexcept {
     T t = std::move(a);
     chain_assign(a, b, c..., t);
 }
@@ -188,31 +184,23 @@ constexpr T roundpow2(T n) noexcept {
 ///
 template <std::integral T>
 constexpr T first1(T n) noexcept {
-    if (n == 0) {
+    if (n == 0)
         return 0; // Error?
-    }
-
 #if __GNUC__
-    if constexpr (sizeof(T) <= sizeof(int)) {
+    if constexpr (sizeof(T) <= sizeof(int))
         return __builtin_ctz(n);
-    }
-    else if constexpr (sizeof(T) == sizeof(long)) {
+    else if constexpr (sizeof(T) == sizeof(long))
         return __builtin_ctzl(n);
-    }
-    else if constexpr (sizeof(T) == sizeof(long long)) {
+    else if constexpr (sizeof(T) == sizeof(long long))
         return __builtin_ctzll(n);
-    }
-    else {
-        // Error.
-    }
-#else
+#endif // #if __GNUC__
+
     T j = 0;
     while (!(n & 1)) {
         n >>= 1;
         j++;
     }
     return j;
-#endif // #if __GNUC__
 }
 
 /// Cyclical bit rotate left.
@@ -290,13 +278,11 @@ constexpr T bit_reverse(T val) noexcept {
     return val;
 }
 
-#if !DOXYGEN
-
-// Interleave integer with zero.
+// Bit interleave with zero.
 template <std::integral T>
-constexpr T bit_interleave_zero_(T val) noexcept {
+constexpr T bit_interleave_zero(T val) noexcept {
     if constexpr (std::signed_integral<T>) {
-        return bit_interleave_zero_<std::make_unsigned_t<T>>(val);
+        return bit_interleave_zero<std::make_unsigned_t<T>>(val);
     }
     else if constexpr (sizeof(T) == sizeof(std::uint8_t)) {
         constexpr std::uint8_t mask[3] = {0xaaU, 0xccU, 0xf0U};
@@ -323,13 +309,8 @@ constexpr T bit_interleave_zero_(T val) noexcept {
         for (int k = 5; k >= 0; k--)
             val = (val ^ (val << (1 << k))) & ~mask[k];
     }
-    else {
-        // Error.
-    }
     return val;
 }
-
-#endif // #if !DOXYGEN
 
 /// Bit interleave.
 ///
@@ -345,8 +326,8 @@ constexpr T bit_interleave_zero_(T val) noexcept {
 ///
 template <std::integral T>
 constexpr T bit_interleave(T val0, T val1) noexcept {
-    val0 = bit_interleave_zero_(val0);
-    val1 = bit_interleave_zero_(val1);
+    val0 = bit_interleave_zero(val0);
+    val1 = bit_interleave_zero(val1);
     return val0 | (val1 << 1);
 }
 
@@ -373,78 +354,6 @@ constexpr T bayer_index(T i, T j) noexcept {
     return bit_reverse<T>(bit_interleave<T>(j ^ i, i)) >>
            (sizeof(T) * 8 - B * 2);
 }
-
-#if !DOXYGEN
-
-template <std::size_t Nbytes>
-constexpr auto sized_int_() {
-    if constexpr (sizeof(std::int_least8_t) >= Nbytes) {
-        return std::int_least8_t();
-    }
-    else if constexpr (sizeof(std::int_least16_t) >= Nbytes) {
-        return std::int_least16_t();
-    }
-    else if constexpr (sizeof(std::int_least32_t) >= Nbytes) {
-        return std::int_least32_t();
-    }
-    else if constexpr (sizeof(std::int_least64_t) >= Nbytes) {
-        return std::int_least64_t();
-    }
-    else {
-        return; // void
-    };
-}
-
-template <std::size_t Nbytes>
-constexpr auto sized_uint_() {
-    if constexpr (sizeof(std::uint_least8_t) >= Nbytes) {
-        return std::uint_least8_t();
-    }
-    else if constexpr (sizeof(std::uint_least16_t) >= Nbytes) {
-        return std::uint_least16_t();
-    }
-    else if constexpr (sizeof(std::uint_least32_t) >= Nbytes) {
-        return std::uint_least32_t();
-    }
-    else if constexpr (sizeof(std::uint_least64_t) >= Nbytes) {
-        return std::uint_least64_t();
-    }
-    else {
-        return; // void
-    };
-}
-
-#endif // #if !DOXYGEN
-
-/// Sized int type selector.
-///
-/// \tparam Nbytes
-/// Least number of bytes.
-///
-template <std::size_t Nbytes>
-struct sized_int {
-    /// Type.
-    ///
-    /// This is the smallest signed integral type
-    /// that occupies at least `Nbytes`, or `void` if no such type exists.
-    ///
-    using type = std::decay_t<decltype(sized_int_<Nbytes>())>;
-};
-
-/// Sized unsigned int type selector.
-///
-/// \tparam Nbytes
-/// Least number of bytes.
-///
-template <std::size_t Nbytes>
-struct sized_uint {
-    /// Type.
-    ///
-    /// This is the smallest unsigned integral type
-    /// that occupies at least `Nbytes`, or `void` if no such type exists.
-    ///
-    using type = std::decay_t<decltype(sized_uint_<Nbytes>())>;
-};
 
 /// Greatest common divisor.
 template <std::integral T>
@@ -481,12 +390,10 @@ constexpr T gcd_bezout(T a, T b, T* x, T* y) noexcept {
 /// Least common multiple.
 template <std::integral T>
 constexpr T lcm(T a, T b) noexcept {
-    if (!a || !b) {
+    if (!a || !b)
         return 0;
-    }
-    else {
+    else
         return a * b / pre::gcd(a, b);
-    }
 }
 
 /// Cantor pairing function.
@@ -527,32 +434,32 @@ template <std::integral T, std::integral... Ts>
 /// \name Floating point helpers
 /** \{ */
 
-template <std::floating_point T>
-inline T finite_or(T x, T x0) noexcept {
+template <std::floating_point Float>
+inline Float finite_or(Float x, Float x0) noexcept {
     return std::isfinite(x) ? x : x0;
 }
 
-template <std::floating_point T>
-inline T finite_or_zero(T x) noexcept {
-    return finite_or(x, T(0));
+template <std::floating_point Float>
+inline Float finite_or_zero(Float x) noexcept {
+    return finite_or(x, Float(0));
 }
 
-template <std::floating_point T>
-inline T frepeat(T x, T a, T b) noexcept {
+template <std::floating_point Float>
+inline Float frepeat(Float x, Float a, Float b) noexcept {
     x -= a;
     b -= a;
-    T r = std::remainder(x, b);
+    Float r = std::remainder(x, b);
     if (r < 0)
         r += b;
     return r + a;
 }
 
-template <std::floating_point T>
-inline T fmirror(T x, T a, T b) noexcept {
+template <std::floating_point Float>
+inline Float fmirror(Float x, Float a, Float b) noexcept {
     x -= a;
     b -= a;
     int q = 0;
-    T r = std::remquo(x, b, &q);
+    Float r = std::remquo(x, b, &q);
     if (r < 0) {
         r += b;
         q++;
@@ -563,123 +470,94 @@ inline T fmirror(T x, T a, T b) noexcept {
 }
 
 /// Increment float to next representable value.
-template <std::floating_point T>
-inline T float_incr(T x) noexcept {
+template <std::floating_point Float>
+inline Float float_incr(Float x) noexcept {
     if constexpr (
-            std::same_as<T, float> && std::numeric_limits<float>::is_iec559) {
-
-        // To bits.
-        std::uint32_t u;
-        std::memcpy(&u, &x, 4);
-        // Is not positive infinity?
-        if (u != (0x7f8UL << 20)) {
-            // Skip negative zero.
-            if (u == (1UL << 31))
+            std::same_as<Float, float> and
+            std::numeric_limits<float>::is_iec559) {
+        std::uint32_t u = bit_cast<std::uint32_t>(x);
+        if (u != (0x7f8UL << 20)) { // Not +Inf?
+            if (u == (1UL << 31))   // Ignore -0.0.
                 u = 0;
-            // Bump.
             if (u & (1UL << 31))
-                u -= 1;
+                u = u - 1;
             else
-                u += 1;
+                u = u + 1;
         }
-        // To float.
-        std::memcpy(&x, &u, 4);
-        return x;
+        return bit_cast<float>(u);
     }
     else if constexpr (
-            std::same_as<T, double> &&
+            std::same_as<Float, double> and
             std::numeric_limits<double>::is_iec559) {
-
-        // To bits.
-        std::uint64_t u;
-        std::memcpy(&u, &x, 8);
-        // Is not positive infinity?
-        if (u != (0x7ffULL << 52)) {
-            // Skip negative zero.
-            if (u == (1ULL << 63))
+        std::uint64_t u = bit_cast<std::uint64_t>(x);
+        if (u != (0x7ffULL << 52)) { // Not +Inf?
+            if (u == (1ULL << 63))   // Ignore -0.0.
                 u = 0;
-            // Bump.
             if (u & (1ULL << 63))
-                u -= 1;
+                u = u - 1;
             else
-                u += 1;
+                u = u + 1;
         }
-        // To float.
-        std::memcpy(&x, &u, 8);
-        return x;
+        return bit_cast<double>(u);
     }
-    else {
-        return std::nextafter(x, +std::numeric_limits<T>::infinity());
-    }
+    else
+        return std::nextafter(x, +Inf<Float>);
 }
 
 /// Decrement float to next representable value.
-template <std::floating_point T>
-inline T float_decr(T x) noexcept {
+template <std::floating_point Float>
+inline Float float_decr(Float x) noexcept {
     if constexpr (
-            std::same_as<T, float> && std::numeric_limits<float>::is_iec559) {
-
-        // To bits.
-        std::uint32_t u;
-        std::memcpy(&u, &x, 4);
-        // Is not negative infinity?
-        if (u != (0xff8UL << 20)) {
-            // Skip positive zero.
-            if (u == 0)
+            std::same_as<Float, float> and
+            std::numeric_limits<float>::is_iec559) {
+        std::uint32_t u = bit_cast<std::uint32_t>(x);
+        if (u != (0xff8UL << 20)) { // Not -Inf?
+            if (u == 0)             // Ignore +0.0.
                 u = (1UL << 31);
-            // Bump.
             if (u & (1UL << 31))
-                u += 1;
+                u = u + 1;
             else
-                u -= 1;
+                u = u - 1;
         }
-        // To float.
-        std::memcpy(&x, &u, 4);
-        return x;
+        return bit_cast<float>(u);
     }
     else if constexpr (
-            std::same_as<T, double> &&
+            std::same_as<Float, double> and
             std::numeric_limits<double>::is_iec559) {
-
-        // To bits.
-        std::uint64_t u;
-        std::memcpy(&u, &x, 8);
-        // Is not negative infinity?
-        if (u != (0xfffULL << 52)) {
-            // Skip positive zero.
-            if (u == 0)
+        std::uint64_t u = bit_cast<std::uint64_t>(x);
+        if (u != (0xfffULL << 52)) { // Not -Inf?
+            if (u == 0)              // Ignore +0.0.
                 u = (1ULL << 63);
-            // Bump.
             if (u & (1ULL << 63))
-                u += 1;
+                u = u + 1;
             else
-                u -= 1;
+                u = u - 1;
         }
-        // To float.
-        std::memcpy(&x, &u, 8);
-        return x;
+        return bit_cast<double>(u);
     }
-    else {
-        return std::nextafter(x, -std::numeric_limits<T>::infinity());
-    }
+    else
+        return std::nextafter(x, -Inf<Float>);
 }
 
-template <std::floating_point T>
-inline bool relatively_tiny(T a, T b) noexcept {
-    a = std::fabs(a);
-    b = std::fabs(b);
-    return (a + b) == b;
+template <std::floating_point Float>
+inline bool relatively_tiny(Float a, Float b) noexcept {
+    volatile Float x = a;
+    volatile Float y = b;
+    volatile Float z = x + y;
+    return z == y;
 }
 
-template <std::floating_point T>
-inline bool relatively_huge(T a, T b) noexcept {
+template <std::floating_point Float>
+inline bool relatively_huge(Float a, Float b) noexcept {
     return relatively_tiny(b, a);
 }
 
 /// Fast inverse square root.
-template <std::floating_point T>
-[[gnu::always_inline]] inline T fast_inv_sqrt(T x) noexcept {
-    if constexpr (pre::numeric_limits<float>::is_iec559) {
+template <std::floating_point Float>
+[[gnu::always_inline]] inline Float fast_inv_sqrt(Float x) noexcept {
+    if constexpr (
+            std::same_as<Float, float> and
+            pre::numeric_limits<float>::is_iec559) {
         float y = x;
         float h = y * 0.5f;
         std::uint32_t u = 0;
@@ -696,31 +574,31 @@ template <std::floating_point T>
 }
 
 /// Fast floor by int casting.
-template <std::floating_point T, std::integral U = int>
-[[gnu::always_inline]] inline U fast_floor(T x) noexcept {
-    U i(x);
-    i = i - (T(i) > x);
+template <std::floating_point Float, std::integral Int = int>
+constexpr Int fast_floor(Float x) noexcept {
+    Int i(x);
+    i = i - (Float(i) > x);
     return i;
 }
 
 /// Fast ceil by int casting.
-template <std::floating_point T, std::integral U = int>
-[[gnu::always_inline]] inline U fast_ceil(T x) noexcept {
-    U i(x);
-    i = i + (T(i) < x);
+template <std::floating_point Float, std::integral Int = int>
+constexpr Int fast_ceil(Float x) noexcept {
+    Int i(x);
+    i = i + (Float(i) < x);
     return i;
 }
 
 /// Fast round by int casting.
-template <std::floating_point T, std::integral U = int>
-[[gnu::always_inline]] inline U fast_round(T x) noexcept {
-    return fast_floor<T, U>(x + T(0.5));
+template <std::floating_point Float, std::integral Int = int>
+constexpr Int fast_round(Float x) noexcept {
+    return fast_floor<Float, Int>(x + Float(0.5));
 }
 
 /// Fast trunc by int casting.
-template <std::floating_point T, std::integral U = int>
-[[gnu::always_inline]] inline U fast_trunc(T x) noexcept {
-    return U(x);
+template <std::floating_point Float, std::integral Int = int>
+constexpr Int fast_trunc(Float x) noexcept {
+    return Int(x);
 }
 
 /// Packed cast.
@@ -728,47 +606,23 @@ template <std::floating_point T, std::integral U = int>
 /// This function converts between floating point values and (un)signed
 /// normalized "packed" integer values.
 ///
-template <concepts::arithmetic U, concepts::arithmetic T>
-[[gnu::always_inline]] inline U packed_cast(T x) noexcept {
-    // Is input floating point?
-    if constexpr (std::floating_point<T>) {
-
-        // Is output floating point?
-        if constexpr (std::floating_point<U>) {
+template <concepts::arithmetic To, concepts::arithmetic From>
+constexpr To packed_cast(From x) noexcept {
+    if constexpr (std::floating_point<From>) {
+        if constexpr (std::floating_point<To>)
             return x;
-        }
-        else {
-            // Is output unsigned?
-            if constexpr (std::unsigned_integral<U>) {
-                // Clamp in [0, 1].
-                x = pre::max(x, T(0));
-                x = pre::min(x, T(1));
-            }
-            else {
-                // Clamp in [-1, +1].
-                x = pre::max(x, T(-1));
-                x = pre::min(x, T(+1));
-            }
-
-            return pre::fast_round<T, U>(pre::numeric_limits<U>::max() * x);
-        }
+        else if constexpr (std::unsigned_integral<To>)
+            return fast_round<From, To>(clamp(x, +0, +1) * Maximum<To>);
+        else
+            return fast_round<From, To>(clamp(x, -1, +1) * Maximum<To>);
     }
     else {
-        // Is output floating point?
-        if constexpr (std::floating_point<U>) {
-            return static_cast<U>(x) /
-                   static_cast<U>(pre::numeric_limits<T>::max());
-        }
-        else {
-            // Is output same as input? (Trivial case)
-            if constexpr (std::same_as<T, U>) {
-                return x;
-            }
-            else {
-                // Use double to convert between integral types.
-                return packed_cast<U>(packed_cast<double>(x));
-            }
-        }
+        if constexpr (std::same_as<To, From>)
+            return x;
+        else if constexpr (std::floating_point<To>)
+            return To(x) / To(Maximum<From>);
+        else
+            return packed_cast<To>(packed_cast<double>(x));
     }
 }
 
